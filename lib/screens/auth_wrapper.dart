@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../services/database_service.dart';
 import '../models/user.dart' as model;
 import 'auth_screen.dart';
-import 'role_selection_screen.dart';
 import 'home_navigation.dart';
 import 'enhanced_admin_dashboard.dart';
 import 'account_suspended_screen.dart';
@@ -17,8 +16,6 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
-  bool? isAdminSelection;
-
   @override
   void initState() {
     super.initState();
@@ -57,28 +54,7 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
 
         final user = authSnapshot.data;
         if (user == null) {
-          if (isAdminSelection == null) {
-            return RoleSelectionScreen(
-              onRoleSelected: (isAdmin) {
-                setState(() => isAdminSelection = isAdmin);
-              },
-            );
-          }
-          return AuthScreen(
-            isAdminMode: isAdminSelection!,
-            onBackToRoleSelection: () {
-              setState(() => isAdminSelection = null);
-            },
-          );
-        }
-
-        // Reset selection for next logout
-        if (isAdminSelection != null) {
-           WidgetsBinding.instance.addPostFrameCallback((_) {
-             if (mounted && isAdminSelection != null) {
-               setState(() => isAdminSelection = null);
-             }
-           });
+          return const AuthScreen();
         }
 
         return StreamBuilder<model.User?>(
@@ -90,13 +66,13 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
 
             final appUser = userSnapshot.data;
             if (appUser == null) {
-              return AuthScreen(
-                isAdminMode: false, 
-                onBackToRoleSelection: () => setState(() => isAdminSelection = null)
-              );
+              return const AuthScreen();
             }
 
-            final bool isPlatformAdmin = appUser.role.toLowerCase() == 'admin' || appUser.isAdmin;
+            // Predefined admin or admin role verification
+            final bool isPlatformAdmin = appUser.email.toLowerCase() == "admin@buddybills.com" ||
+                appUser.role.toLowerCase() == 'admin' ||
+                appUser.isAdmin;
 
             // If account is suspended by Admin and not platform admin, block access
             if (!appUser.isActive && !isPlatformAdmin) {
