@@ -18,9 +18,9 @@ class EmailService {
   // ============================================================================
 
   // --- EmailJS Configuration ---
-  static const String emailJsServiceId = ""; // e.g. "service_xxxxxxx"
-  static const String emailJsTemplateId = ""; // e.g. "template_xxxxxxx"
-  static const String emailJsPublicKey = ""; // e.g. "public_key_xxxxxxx"
+  static const String emailJsServiceId = "service_c2tmsda";
+  static const String emailJsTemplateId = "template_hu6g7ek";
+  static const String emailJsPublicKey = "DzK2IlFPqavb9Xd-2";
 
   // --- Brevo Configuration ---
   static const String brevoApiKey = ""; // e.g. "xkeysib-xxxxxxx"
@@ -55,9 +55,11 @@ class EmailService {
             'template_params': {
               'to_email': recipientEmail,
               'recipient_email': recipientEmail,
+              'email': recipientEmail,
               'name': recipientName,
               'otp_code': otpCode,
               'otp': otpCode,
+              'passcode': otpCode,
               'app_name': 'Buddy Bills',
             },
           }),
