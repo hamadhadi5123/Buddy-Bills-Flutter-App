@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "888705135654",
+    "project_id": "buddybills-2f8ec",
+    "storage_bucket": "buddybills-2f8ec.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:888705135654:android:b1f60c111ecc685591a2e7",
+        "android_client_info": {
+          "package_name": "com.buddybills.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "888705135654-926ea7g65skk40p7mjhr4b7q8gul8t3h.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBmyC3Pk5hzejm00W-bTZx4JXEEZR2mqqU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "888705135654-926ea7g65skk40p7mjhr4b7q8gul8t3h.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:888705135654:android:b1f60c111ecc685591a2e7",
+        "android_client_info": {
+          "package_name": "com.example.buddy_bills"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "888705135654-926ea7g65skk40p7mjhr4b7q8gul8t3h.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBmyC3Pk5hzejm00W-bTZx4JXEEZR2mqqU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "888705135654-926ea7g65skk40p7mjhr4b7q8gul8t3h.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

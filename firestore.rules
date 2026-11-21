@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 1. Users collection: Authenticated users can read/write their own profile
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
+    }
+
+    // 2. Groups collection: Members can read and update
+    match /groups/{groupId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (
+        request.auth.uid in resource.data.memberIds
+      );
+    }
+
+    // 3. Expenses collection: Group members can read and create expenses
+    match /expenses/{expenseId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (
+        request.auth.uid == resource.data.paidByUserId
+      );
+    }
+
+    // 4. Activities collection: Read all user-involved activities
+    match /activities/{activityId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 5. Settlements collection: Authenticated settlements
+    match /settlements/{settlementId} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}
