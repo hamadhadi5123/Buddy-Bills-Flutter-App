@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/group.dart';
 import '../models/expense.dart';
@@ -113,10 +114,20 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                       backgroundColor: Colors.transparent,
                       elevation: 0,
                       actions: [
+                        if (isCreator)
+                          IconButton(
+                            icon: Icon(Icons.edit_rounded, color: primaryBrandColor),
+                            tooltip: "Edit Group",
+                            onPressed: () => _showEditGroupDialog(currentGroup),
+                          ),
                         IconButton(
                           icon: Icon(Icons.forum_outlined, color: primaryBrandColor),
+                          tooltip: "Group Chat",
                           onPressed: () {
-                            final currentUser = widget.allUsers.firstWhere((u) => u.uid == widget.currentUserUid);
+                            final currentUser = widget.allUsers.firstWhere(
+                              (u) => u.uid == widget.currentUserUid,
+                              orElse: () => model.User(uid: widget.currentUserUid, name: "User", email: "", createdAt: DateTime.now()),
+                            );
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -130,8 +141,15 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                         ),
                         IconButton(
                           icon: Icon(Icons.person_add_rounded, color: primaryBrandColor),
+                          tooltip: "Add Member",
                           onPressed: _showAddMemberDialog,
                         ),
+                        if (isCreator)
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+                            tooltip: "Delete Group",
+                            onPressed: () => _showDeleteGroupDialog(currentGroup),
+                          ),
                         const SizedBox(width: 8),
                       ],
                     ),
@@ -146,7 +164,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const SizedBox(height: 10), // Space for AppBar
-                              _buildGlassHeader(currentGroup, textColor, isSmallScreen),
+                              _buildGlassHeader(currentGroup, textColor, isSmallScreen, isCreator),
                               const SizedBox(height: 24),
                               
                               if (debts.isNotEmpty) ...[
@@ -198,7 +216,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
-  Widget _buildGlassHeader(Group group, Color textColor, bool isSmall) {
+  Widget _buildGlassHeader(Group group, Color textColor, bool isSmall, bool isCreator) {
     return GlassCard(
       isDarkMode: widget.isDarkMode,
       padding: const EdgeInsets.all(24),
@@ -219,6 +237,25 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     Text("${group.type} • ${group.members.length} members", 
                       style: GoogleFonts.poppins(fontSize: 14, color: textColor.withOpacity(0.6))
                     ),
+                    if (isCreator) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD4AF37).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFD4AF37).withOpacity(0.4)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.verified_user_rounded, color: Color(0xFFD4AF37), size: 14),
+                            const SizedBox(width: 4),
+                            Text("Group Admin", style: GoogleFonts.poppins(color: const Color(0xFFD4AF37), fontSize: 11, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -433,8 +470,18 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Participants", 
-          style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w600, color: textColor)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text("Participants (${group.members.length})", 
+              style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w600, color: textColor)
+            ),
+            TextButton.icon(
+              onPressed: _showAddMemberDialog,
+              icon: Icon(Icons.person_add_rounded, size: 18, color: primaryBrandColor),
+              label: Text("Add Member", style: GoogleFonts.poppins(color: primaryBrandColor, fontWeight: FontWeight.bold, fontSize: 13)),
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         GridView.builder(
@@ -444,49 +491,93 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             crossAxisCount: isSmall ? 4 : 6,
             mainAxisSpacing: 16,
             crossAxisSpacing: 16,
-            childAspectRatio: 0.85,
+            childAspectRatio: 0.78,
           ),
-          itemCount: group.members.length,
+          itemCount: group.members.length + 1,
           itemBuilder: (context, index) {
-            final uid = group.members[index];
-            final user = widget.allUsers.firstWhere((u) => u.uid == uid, orElse: () => model.User(uid: uid, name: "User", email: "", createdAt: DateTime.now()));
+            // First item is Add Member shortcut button
+            if (index == 0) {
+              return GestureDetector(
+                onTap: _showAddMemberDialog,
+                child: Column(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: primaryBrandColor.withOpacity(0.12),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: primaryBrandColor.withOpacity(0.4), width: 1.5),
+                      ),
+                      child: Icon(Icons.add_rounded, color: primaryBrandColor, size: 26),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      "Add",
+                      maxLines: 1,
+                      style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: primaryBrandColor),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final uid = group.members[index - 1];
+            final user = widget.allUsers.firstWhere(
+              (u) => u.uid == uid, 
+              orElse: () => model.User(uid: uid, name: "Member $index", email: "", createdAt: DateTime.now())
+            );
             final bool isMe = uid == widget.currentUserUid;
+            final bool isGroupAdmin = uid == group.createdBy;
+            final String? addedBy = group.memberAddedBy[uid];
+            final bool iAddedThem = addedBy == widget.currentUserUid;
+            final bool canRemove = !isMe && (isCreator || iAddedThem);
 
             return GestureDetector(
               onTap: () {
-                if (!isMe) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => PrivateChatScreen(
-                        recipient: user,
-                        currentUser: widget.allUsers.firstWhere((u) => u.uid == widget.currentUserUid),
-                      ),
-                    ),
-                  );
-                }
-              },
-              onLongPress: () {
-                final String? addedBy = group.memberAddedBy[uid];
-                final bool iAddedThem = addedBy == widget.currentUserUid;
-
-                if (!isMe && (isCreator || iAddedThem)) {
-                  _showRemoveMemberDialog(user.name, uid);
-                }
+                _showMemberOptionsBottomSheet(user, isMe, canRemove);
               },
               child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: isMe ? primaryBrandColor : Colors.grey.withOpacity(0.2),
-                    child: Text(user.name[0].toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      CircleAvatar(
+                        radius: 24,
+                        backgroundColor: isMe ? const Color(0xFFD4AF37) : (isGroupAdmin ? const Color(0xFF27C46E) : Colors.grey.withOpacity(0.2)),
+                        child: Text(
+                          user.name.isNotEmpty ? user.name[0].toUpperCase() : "U", 
+                          style: TextStyle(
+                            color: isMe ? const Color(0xFF0F172A) : Colors.white, 
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          )
+                        ),
+                      ),
+                      if (isGroupAdmin)
+                        Positioned(
+                          right: -2,
+                          top: -2,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFD4AF37),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.star_rounded, size: 12, color: Colors.black),
+                          ),
+                        ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(user.name.split(' ')[0], 
+                  const SizedBox(height: 6),
+                  Text(
+                    isMe ? "You" : user.name.split(' ')[0], 
                     maxLines: 1, 
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(fontSize: 10, color: textColor.withOpacity(0.7))
+                    style: GoogleFonts.poppins(fontSize: 11, fontWeight: isMe || isGroupAdmin ? FontWeight.w600 : FontWeight.normal, color: textColor.withOpacity(0.85))
                   ),
+                  if (isGroupAdmin)
+                    Text("Admin", style: GoogleFonts.poppins(fontSize: 9, color: const Color(0xFFD4AF37), fontWeight: FontWeight.bold)),
                 ],
               ),
             );
@@ -666,6 +757,201 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       await UserActivityService.logExpenseCreated(widget.currentUserUid, "User", expense.description, expense.amount);
       if (!mounted) return;
     }
+  }
+
+  void _showMemberOptionsBottomSheet(model.User user, bool isMe, bool canRemove) {
+    final textColor = widget.isDarkMode ? Colors.white : const Color(0xFF1A1A2E);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: widget.isDarkMode ? const Color(0xFF1E2230) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 20),
+              CircleAvatar(
+                radius: 30,
+                backgroundColor: primaryBrandColor.withOpacity(0.15),
+                child: Text(user.name.isNotEmpty ? user.name[0].toUpperCase() : "U", style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: primaryBrandColor)),
+              ),
+              const SizedBox(height: 12),
+              Text(user.name, style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
+              if (user.email.isNotEmpty)
+                Text(user.email, style: GoogleFonts.poppins(fontSize: 13, color: textColor.withOpacity(0.5))),
+              const SizedBox(height: 24),
+              if (!isMe) ...[
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: const Color(0xFF27C46E).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.chat_bubble_rounded, color: Color(0xFF27C46E)),
+                  ),
+                  title: Text("Direct Message", style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: textColor)),
+                  subtitle: Text("Chat 1-on-1 with ${user.name}", style: TextStyle(color: textColor.withOpacity(0.5), fontSize: 12)),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PrivateChatScreen(
+                          recipient: user,
+                          currentUser: widget.allUsers.firstWhere(
+                            (u) => u.uid == widget.currentUserUid,
+                            orElse: () => model.User(uid: widget.currentUserUid, name: "You", email: "", createdAt: DateTime.now()),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+              if (canRemove)
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.person_remove_rounded, color: Colors.redAccent),
+                  ),
+                  title: Text("Remove from Group", style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Colors.redAccent)),
+                  subtitle: Text("Remove ${user.name} from this group", style: TextStyle(color: textColor.withOpacity(0.5), fontSize: 12)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showRemoveMemberDialog(user.name, user.uid);
+                  },
+                ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showEditGroupDialog(Group group) {
+    final nameCtrl = TextEditingController(text: group.name);
+    String selectedType = group.type;
+    final textColor = widget.isDarkMode ? Colors.white : const Color(0xFF1A1A2E);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: widget.isDarkMode ? const Color(0xFF1E2230) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text("Edit Group Details", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: textColor)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                style: GoogleFonts.poppins(color: textColor),
+                decoration: InputDecoration(
+                  labelText: "Group Name",
+                  labelStyle: TextStyle(color: textColor.withOpacity(0.6)),
+                  filled: true,
+                  fillColor: textColor.withOpacity(0.05),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: ["Trip", "Home", "Couple", "Event", "Other"].contains(selectedType) ? selectedType : "Other",
+                dropdownColor: widget.isDarkMode ? const Color(0xFF1E2230) : Colors.white,
+                style: GoogleFonts.poppins(color: textColor),
+                decoration: InputDecoration(
+                  labelText: "Category / Type",
+                  labelStyle: TextStyle(color: textColor.withOpacity(0.6)),
+                  filled: true,
+                  fillColor: textColor.withOpacity(0.05),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                ),
+                items: const [
+                  DropdownMenuItem(value: "Trip", child: Text("Trip / Travel")),
+                  DropdownMenuItem(value: "Home", child: Text("Home / Flatmates")),
+                  DropdownMenuItem(value: "Couple", child: Text("Couple")),
+                  DropdownMenuItem(value: "Event", child: Text("Event / Party")),
+                  DropdownMenuItem(value: "Other", child: Text("Other")),
+                ],
+                onChanged: (val) {
+                  if (val != null) setDialogState(() => selectedType = val);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text("Cancel", style: TextStyle(color: textColor.withOpacity(0.5))),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryBrandColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              onPressed: () async {
+                final newName = nameCtrl.text.trim();
+                if (newName.isNotEmpty) {
+                  final db = Provider.of<DatabaseService>(context, listen: false);
+                  await db.updateGroup(group.copyWith(name: newName, type: selectedType));
+                  if (mounted) {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Group updated successfully!"), backgroundColor: Color(0xFF27C46E)),
+                    );
+                  }
+                }
+              },
+              child: const Text("Save Changes"),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteGroupDialog(Group group) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: widget.isDarkMode ? const Color(0xFF1E2230) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Delete Group?", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.redAccent)),
+        content: Text("Are you sure you want to permanently delete \"${group.name}\"? This action cannot be undone.", style: TextStyle(color: widget.isDarkMode ? Colors.white70 : Colors.black87)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () async {
+              final db = Provider.of<DatabaseService>(context, listen: false);
+              for (var m in group.members) {
+                await db.decrementUserGroupsJoined(m);
+              }
+              await FirebaseFirestore.instance.collection('groups').doc(group.id).delete();
+              if (mounted) {
+                Navigator.pop(ctx);
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Group \"${group.name}\" deleted"), backgroundColor: Colors.redAccent),
+                );
+              }
+            },
+            child: const Text("Delete", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   // Removed unused methods: _showMemberDetailsDialog, _showSettleUpDialog, _showAllExpensesDialog

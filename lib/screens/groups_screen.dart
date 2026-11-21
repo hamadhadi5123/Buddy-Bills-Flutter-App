@@ -60,9 +60,16 @@ class GroupsScreen extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 100), // Space for bottom bar
               child: FloatingActionButton.extended(
                 onPressed: onAddExpense,
-                elevation: 10,
-                icon: const Icon(Icons.add_rounded, color: Colors.white),
-                label: Text("Add Expense", style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold)),
+                elevation: 12,
+                icon: Icon(Icons.add_rounded, color: primaryBrandColor.computeLuminance() > 0.45 ? const Color(0xFF0F172A) : Colors.white, size: 24),
+                label: Text(
+                  "Add Expense", 
+                  style: GoogleFonts.poppins(
+                    color: primaryBrandColor.computeLuminance() > 0.45 ? const Color(0xFF0F172A) : Colors.white, 
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.3,
+                  ),
+                ),
                 backgroundColor: primaryBrandColor,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),

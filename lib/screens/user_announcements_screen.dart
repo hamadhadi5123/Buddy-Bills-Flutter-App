@@ -72,7 +72,7 @@ class UserAnnouncementsScreen extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Icon(IconData(Announcement.getPriorityIcon(announcement.priority), fontFamily: 'MaterialIcons'), color: priorityColor, size: 20),
+                            Icon(Announcement.getPriorityIconData(announcement.priority), color: priorityColor, size: 20),
                             const SizedBox(width: 12),
                             Expanded(child: Text(announcement.title, style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: textColor))),
                           ],

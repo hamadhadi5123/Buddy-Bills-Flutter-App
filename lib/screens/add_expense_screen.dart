@@ -34,6 +34,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   Map<String, TextEditingController> amountControllers = {};
   Map<String, TextEditingController> multiplePayerControllers = {};
   String selectedCategory = 'Food';
+  late List<model.User> _effectiveMembers;
 
   final List<Map<String, dynamic>> categories = [
     {'name': 'Food', 'icon': Icons.fastfood_rounded, 'color': const Color(0xFFFF9F1C)},
@@ -46,12 +47,29 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   @override
   void initState() {
     super.initState();
+    _initMembers();
+  }
+
+  void _initMembers() {
+    final Map<String, model.User> unique = {};
+    for (var m in widget.availableMembers) {
+      if (m.uid.isNotEmpty) {
+        unique[m.uid] = m;
+      }
+    }
+    // Guarantee current user is always included
+    if (!unique.containsKey(widget.currentUserUid)) {
+      unique[widget.currentUserUid] = model.User(
+        uid: widget.currentUserUid,
+        name: "You",
+        email: "",
+        createdAt: DateTime.now(),
+      );
+    }
+    _effectiveMembers = unique.values.toList();
     paidByUid = widget.currentUserUid;
-    
-    // Include all members (admins can participate too)
-    final nonAdminMembers = widget.availableMembers.toList();
-    
-    for (var member in nonAdminMembers) {
+
+    for (var member in _effectiveMembers) {
       selectedMembers[member.uid] = true;
       amountControllers[member.uid] = TextEditingController();
       multiplePayerControllers[member.uid] = TextEditingController();
@@ -181,16 +199,21 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: GlassButton(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: ElevatedButton.icon(
               onPressed: () {
                 final e = createExpense();
                 if (e != null) Navigator.pop(context, e);
               },
-              label: "SAVE",
-              color: const Color(0xFF27C46E),
-              isDarkMode: isDark,
+              icon: const Icon(Icons.check_rounded, size: 18, color: Colors.white),
+              label: Text("Save", style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF27C46E),
+                elevation: 4,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
             ),
           ),
         ],
@@ -285,24 +308,28 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                               decoration: BoxDecoration(color: primaryColor.withValues(alpha: isDark ? 0.1 : 0.05), borderRadius: BorderRadius.circular(12)),
                               child: DropdownButtonHideUnderline(
                                 child: DropdownButton<String>(
-                                  value: paidByUid,
+                                  value: _effectiveMembers.any((u) => u.uid == paidByUid)
+                                      ? paidByUid
+                                      : _effectiveMembers.first.uid,
                                   isExpanded: false,
                                   icon: Icon(Icons.keyboard_arrow_down_rounded, color: primaryColor),
                                   dropdownColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
-                                  items: widget.availableMembers
+                                  items: _effectiveMembers
                                     .map((u) => DropdownMenuItem(
                                     value: u.uid,
                                     child: ConstrainedBox(
-                                      constraints: const BoxConstraints(maxWidth: 90),
+                                      constraints: const BoxConstraints(maxWidth: 100),
                                       child: Text(
-                                        u.name,
+                                        u.uid == widget.currentUserUid ? "${u.name} (You)" : u.name,
                                         style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: textColor, fontSize: 13),
                                         overflow: TextOverflow.ellipsis,
                                         maxLines: 1,
                                       ),
                                     ),
                                   )).toList(),
-                                  onChanged: (val) => setState(() => paidByUid = val),
+                                  onChanged: (val) {
+                                    if (val != null) setState(() => paidByUid = val);
+                                  },
                                 ),
                               ),
                             ),
@@ -311,7 +338,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         if (isMultiplePayers) ...[
                           Divider(height: 32, thickness: 1, color: textColor.withValues(alpha: 0.05)),
                           Column(
-                            children: widget.availableMembers
+                            children: _effectiveMembers
                               .map((u) => Padding(
                                 padding: const EdgeInsets.only(bottom: 8.0),
                                 child: Row(
@@ -322,7 +349,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                                       child: Text(u.name[0].toUpperCase(), style: GoogleFonts.outfit(fontSize: 10, color: primaryColor, fontWeight: FontWeight.bold)),
                                     ),
                                     const SizedBox(width: 8),
-                                    Expanded(child: Text(u.name, style: GoogleFonts.poppins(fontSize: 12, color: textColor))),
+                                    Expanded(child: Text(u.uid == widget.currentUserUid ? "${u.name} (You)" : u.name, style: GoogleFonts.poppins(fontSize: 12, color: textColor))),
                                     Container(
                                       width: 80,
                                       height: 35,
@@ -364,14 +391,32 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     isDarkMode: isDark,
                     padding: EdgeInsets.zero,
                     child: Column(
-                      children: widget.availableMembers
+                      children: _effectiveMembers
                           .map<Widget>((u) {
                         final isSelected = selectedMembers[u.uid] ?? false;
                         return _buildMemberTile(u, isSelected, textColor, primaryColor, isDark);
                       }).toList(),
                     ),
                   ),
-                  const SizedBox(height: 100),
+                  const SizedBox(height: 28),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        final e = createExpense();
+                        if (e != null) Navigator.pop(context, e);
+                      },
+                      icon: const Icon(Icons.check_circle_rounded, size: 22, color: Colors.white),
+                      label: Text("Save Expense", style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF27C46E),
+                        elevation: 6,
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 60),
                 ],
               ),
             ),

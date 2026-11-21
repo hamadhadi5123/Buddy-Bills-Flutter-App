@@ -1,5 +1,7 @@
 
 
+import 'package:flutter/material.dart';
+
 class UserActivity {
   String id;
   String userId;
@@ -56,6 +58,23 @@ class UserActivity {
   }
 
   // Get icon for activity type
+  static IconData getActivityIconData(String action) {
+    switch (action) {
+      case 'login':
+        return Icons.login_rounded;
+      case 'expense_created':
+        return Icons.attach_money_rounded;
+      case 'group_created':
+        return Icons.group_add_rounded;
+      case 'group_joined':
+        return Icons.groups_rounded;
+      case 'profile_updated':
+        return Icons.person_rounded;
+      default:
+        return Icons.local_activity_rounded;
+    }
+  }
+
   static int getActivityIcon(String action) {
     switch (action) {
       case 'login':

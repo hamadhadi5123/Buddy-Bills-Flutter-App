@@ -85,13 +85,16 @@ class GlassButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isLightBackground = color.computeLuminance() > 0.45;
+    final Color contentColor = isLightBackground ? const Color(0xFF0F172A) : Colors.white;
+
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.4), // Glow effect
-            blurRadius: 12,
+            color: color.withOpacity(0.35), // Glow effect
+            blurRadius: 14,
             offset: const Offset(0, 4),
           ),
         ],
@@ -102,16 +105,24 @@ class GlassButton extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: ElevatedButton.icon(
             onPressed: onPressed,
-            icon: icon != null ? Icon(icon, size: 20) : const SizedBox.shrink(),
-            label: Text(label, style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 16)),
+            icon: icon != null ? Icon(icon, size: 20, color: contentColor) : const SizedBox.shrink(),
+            label: Text(
+              label, 
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.bold, 
+                fontSize: 16,
+                color: contentColor,
+                letterSpacing: 0.3,
+              ),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: color.withOpacity(0.95), // Very solid for professionalism
-              foregroundColor: Colors.white,
+              foregroundColor: contentColor,
               elevation: 4, // Slight lift
               padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
-                side: BorderSide(color: Colors.white.withOpacity(0.3)),
+                side: BorderSide(color: isLightBackground ? Colors.black.withOpacity(0.15) : Colors.white.withOpacity(0.3)),
               ),
             ),
           ),

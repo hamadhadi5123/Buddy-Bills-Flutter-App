@@ -40,6 +40,9 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
 
     _messageController.clear();
     await db.sendMessage(widget.group.id!, message);
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(0.0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    }
   }
 
   @override

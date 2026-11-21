@@ -257,11 +257,21 @@ class DatabaseService {
   // ================= CHAT OPERATIONS =================
   Future<void> sendMessage(String groupId, ChatMessage message) async {
     try {
-      await _db
+      final docRef = _db
           .collection('groups')
           .doc(groupId)
           .collection('messages')
-          .add(message.toMap());
+          .doc();
+      final msgWithId = ChatMessage(
+        id: docRef.id,
+        senderId: message.senderId,
+        senderName: message.senderName,
+        content: message.content,
+        timestamp: message.timestamp,
+        type: message.type,
+        readBy: message.readBy,
+      );
+      await docRef.set(msgWithId.toMap());
     } catch (e) {
       debugPrint('Error sending message: $e');
       rethrow;
@@ -269,6 +279,7 @@ class DatabaseService {
   }
 
   Future<void> markMessageAsRead(String groupId, String messageId, String userId) async {
+    if (messageId.isEmpty) return;
     try {
       await _db
           .collection('groups')
@@ -288,12 +299,13 @@ class DatabaseService {
         .collection('groups')
         .doc(groupId)
         .collection('messages')
-        .orderBy('timestamp', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => ChatMessage.fromMap(doc.data()))
+      final list = snapshot.docs
+          .map((doc) => ChatMessage.fromMap(doc.data(), doc.id))
           .toList();
+      list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return list;
     }).handleError((error) {
       debugPrint('Error streaming chat messages: $error');
       return <ChatMessage>[];
@@ -311,13 +323,24 @@ class DatabaseService {
       String recipientId, String currentUserId, ChatMessage message) async {
     try {
       final convId = getConversationId(currentUserId, recipientId);
-
-      // 1. Add message to the subcollection
-      await _db
+      final docRef = _db
           .collection('private_chats')
           .doc(convId)
           .collection('messages')
-          .add(message.toMap());
+          .doc();
+
+      final msgWithId = ChatMessage(
+        id: docRef.id,
+        senderId: message.senderId,
+        senderName: message.senderName,
+        content: message.content,
+        timestamp: message.timestamp,
+        type: message.type,
+        readBy: message.readBy,
+      );
+
+      // 1. Add message with ID to the subcollection
+      await docRef.set(msgWithId.toMap());
 
       // 2. Update conversation summary/metadata
       await _db.collection('conversations').doc(convId).set({
@@ -338,12 +361,13 @@ class DatabaseService {
         .collection('private_chats')
         .doc(convId)
         .collection('messages')
-        .orderBy('timestamp', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => ChatMessage.fromMap(doc.data()))
+      final list = snapshot.docs
+          .map((doc) => ChatMessage.fromMap(doc.data(), doc.id))
           .toList();
+      list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return list;
     }).handleError((error) {
       debugPrint('Error streaming private messages: $error');
       return <ChatMessage>[];
@@ -351,6 +375,7 @@ class DatabaseService {
   }
 
   Future<void> markPrivateMessageAsRead(String convId, String messageId, String userId) async {
+    if (messageId.isEmpty) return;
     try {
       await _db
           .collection('private_chats')

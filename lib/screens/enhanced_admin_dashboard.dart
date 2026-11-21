@@ -309,7 +309,7 @@ class _EnhancedAdminDashboardState extends State<EnhancedAdminDashboard> with Si
                             leading: Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                              child: Icon(IconData(UserActivity.getActivityIcon(activity.action), fontFamily: 'MaterialIcons'), size: 18, color: primaryColor),
+                              child: Icon(UserActivity.getActivityIconData(activity.action), size: 18, color: primaryColor),
                             ),
                             title: Text(activity.details, style: GoogleFonts.manrope(fontSize: 14, color: textColor)),
                             subtitle: Text(_formatTimestamp(activity.timestamp), style: GoogleFonts.manrope(fontSize: 11, color: textColor.withOpacity(0.5))),

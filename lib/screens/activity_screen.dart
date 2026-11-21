@@ -166,7 +166,7 @@ class ActivityScreen extends StatelessWidget {
                             border: Border.all(color: primaryColor.withOpacity(0.1)),
                           ),
                           child: Icon(
-                            IconData(UserActivity.getActivityIcon(activity.action), fontFamily: 'MaterialIcons'),
+                            UserActivity.getActivityIconData(activity.action),
                             color: primaryColor, // Always Gold for brand recognition
                             size: 22,
                           ),

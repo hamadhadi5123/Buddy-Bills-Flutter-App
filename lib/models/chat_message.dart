@@ -34,9 +34,9 @@ class ChatMessage {
     };
   }
 
-  factory ChatMessage.fromMap(Map<String, dynamic> map) {
+  factory ChatMessage.fromMap(Map<String, dynamic> map, [String? id]) {
     return ChatMessage(
-      id: map['id'] ?? '',
+      id: id ?? map['id'] ?? '',
       senderId: map['senderId'] ?? '',
       senderName: map['senderName'] ?? '',
       content: map['content'] ?? '',

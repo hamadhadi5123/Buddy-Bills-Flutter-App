@@ -74,6 +74,9 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
     _setTyping(false);
     
     await db.sendPrivateMessage(widget.recipient.uid, widget.currentUser.uid, message);
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(0.0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    }
   }
 
   Future<void> _launchWhatsApp() async {

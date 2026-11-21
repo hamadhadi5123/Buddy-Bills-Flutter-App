@@ -1,5 +1,7 @@
 
 
+import 'package:flutter/material.dart';
+
 class Announcement {
   String id;
   String title;
@@ -62,6 +64,17 @@ class Announcement {
   }
 
   // Get icon based on priority
+  static IconData getPriorityIconData(String priority) {
+    switch (priority) {
+      case 'urgent':
+        return Icons.error_outline_rounded;
+      case 'important':
+        return Icons.warning_amber_rounded;
+      default:
+        return Icons.info_outline_rounded;
+    }
+  }
+
   static int getPriorityIcon(String priority) {
     switch (priority) {
       case 'urgent':
