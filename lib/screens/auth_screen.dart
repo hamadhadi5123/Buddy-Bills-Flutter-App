@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -31,20 +32,25 @@ class _AuthScreenState extends State<AuthScreen> {
   static const String predefinedAdminEmail = "admin@buddybills.com";
 
   bool isLogin = true;
-  bool isEmailVerificationSent = false;
+  bool isOtpSent = false;
   bool isLoading = false;
   bool passwordVisible = false;
   bool confirmPasswordVisible = false;
 
   Timer? _timer;
-  Timer? _emailPollingTimer;
-  int _start = 60;
+  int _start = 59;
   bool _canResend = false;
+
+  String? _currentOtp;
+  String _pendingName = '';
+  String _pendingEmail = '';
+  String _pendingPassword = '';
 
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
   final nameController = TextEditingController();
+  final otpController = TextEditingController();
 
   Color get primaryBrandColor => PremiumTheme.goldenPrimary;
 
@@ -63,18 +69,18 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   void dispose() {
     _timer?.cancel();
-    _emailPollingTimer?.cancel();
     emailController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
     nameController.dispose();
+    otpController.dispose();
     super.dispose();
   }
 
   void startTimer() {
     _timer?.cancel();
     setState(() {
-      _start = 60;
+      _start = 59;
       _canResend = false;
     });
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -130,11 +136,11 @@ class _AuthScreenState extends State<AuthScreen> {
                         _buildAuthForm(isDark, textColor),
                         const SizedBox(height: 24),
                         _buildActionButton(),
-                        if (isLogin && !isEmailVerificationSent) _buildSocialLogin(textColor, isDark),
+                        if (isLogin && !isOtpSent) _buildSocialLogin(textColor, isDark),
                       ],
                     ),
                   ),
-                  if (!isEmailVerificationSent) _buildToggleAuthMode(subTextColor),
+                  if (!isOtpSent) _buildToggleAuthMode(subTextColor),
                 ],
               ),
             ),
@@ -190,9 +196,9 @@ class _AuthScreenState extends State<AuthScreen> {
     if (isLogin) {
       title = "Welcome Back";
       subtitle = "Sign in with your email and password";
-    } else if (isEmailVerificationSent) {
-      title = "Verify Your Email";
-      subtitle = "We have sent a verification email to your inbox";
+    } else if (isOtpSent) {
+      title = "Enter Verification OTP";
+      subtitle = "Enter the 6-digit code sent to your email";
     } else {
       title = "Create Account";
       subtitle = "Register to start splitting bills with friends";
@@ -225,7 +231,7 @@ class _AuthScreenState extends State<AuthScreen> {
     return Column(
       children: [
         // Name field for Signup
-        if (!isLogin && !isEmailVerificationSent) ...[
+        if (!isLogin && !isOtpSent) ...[
           _buildPremiumTextField(
             nameController,
             "Full Name",
@@ -237,7 +243,7 @@ class _AuthScreenState extends State<AuthScreen> {
         ],
 
         // Email field
-        if (!isEmailVerificationSent) ...[
+        if (!isOtpSent) ...[
           _buildPremiumTextField(
             emailController,
             "Email Address",
@@ -250,7 +256,7 @@ class _AuthScreenState extends State<AuthScreen> {
         ],
 
         // Password field
-        if (!isEmailVerificationSent) ...[
+        if (!isOtpSent) ...[
           _buildPremiumTextField(
             passwordController,
             "Password",
@@ -265,7 +271,7 @@ class _AuthScreenState extends State<AuthScreen> {
         ],
 
         // Confirm Password field for Signup
-        if (!isLogin && !isEmailVerificationSent) ...[
+        if (!isLogin && !isOtpSent) ...[
           _buildPremiumTextField(
             confirmPasswordController,
             "Confirm Password",
@@ -278,15 +284,15 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
         ],
 
-        // Email verification step
-        if (isEmailVerificationSent) ...[
-          _buildEmailVerificationStep(isDark, textColor),
+        // OTP verification step
+        if (isOtpSent) ...[
+          _buildOtpVerificationStep(isDark, textColor),
         ],
       ],
     );
   }
 
-  Widget _buildEmailVerificationStep(bool isDark, Color textColor) {
+  Widget _buildOtpVerificationStep(bool isDark, Color textColor) {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
@@ -322,7 +328,7 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            "Verification email sent to:",
+            "6-digit OTP code sent to:",
             style: GoogleFonts.poppins(fontSize: 12, color: textColor.withOpacity(0.7)),
             textAlign: TextAlign.center,
           ),
@@ -334,7 +340,7 @@ class _AuthScreenState extends State<AuthScreen> {
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
-              emailController.text.trim(),
+              _pendingEmail,
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
@@ -342,38 +348,96 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
+
+          // Code display badge for quick dev & user convenience
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: isDark ? Colors.black38 : Colors.white70,
-              borderRadius: BorderRadius.circular(12),
+              color: isDark ? Colors.black45 : Colors.white70,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: primaryBrandColor.withOpacity(0.3)),
             ),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: primaryBrandColor),
+                Icon(Icons.shield_outlined, size: 18, color: primaryBrandColor),
+                const SizedBox(width: 8),
+                Text(
+                  "OTP Code: ",
+                  style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w500, color: textColor.withOpacity(0.85)),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    "Waiting for verification... Open your email and tap the confirmation link.",
-                    style: GoogleFonts.poppins(fontSize: 11, color: textColor.withOpacity(0.85)),
+                Text(
+                  _currentOtp ?? "------",
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2.5,
+                    color: primaryBrandColor,
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 18),
+
+          // 6-digit OTP Input field
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Enter 6-Digit OTP",
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: otpController,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                maxLength: 6,
+                style: GoogleFonts.poppins(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 8,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+                decoration: InputDecoration(
+                  counterText: "",
+                  hintText: "••••••",
+                  hintStyle: GoogleFonts.poppins(
+                    color: Colors.grey.withOpacity(0.4),
+                    fontSize: 22,
+                    letterSpacing: 8,
+                  ),
+                  filled: true,
+                  fillColor: isDark ? Colors.black.withOpacity(0.3) : Colors.black.withOpacity(0.04),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: isDark ? Colors.white12 : Colors.black12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: primaryBrandColor, width: 2),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Verify & Register Button
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: isLoading ? null : _manualCheckEmailVerified,
-              icon: const Icon(Icons.check_circle_rounded, size: 20),
+              onPressed: isLoading ? null : _verifyOtpAndCreateAccount,
+              icon: const Icon(Icons.verified_user_rounded, size: 20),
               label: Text(
-                isLoading ? "Checking..." : "I Have Verified My Email",
+                isLoading ? "Creating Account..." : "Verify OTP & Create Account",
                 style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 14),
               ),
               style: ElevatedButton.styleFrom(
@@ -385,15 +449,18 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
+
+          // Back to edit & Timer / Resend Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               TextButton.icon(
                 onPressed: () {
-                  _emailPollingTimer?.cancel();
+                  _timer?.cancel();
                   setState(() {
-                    isEmailVerificationSent = false;
+                    isOtpSent = false;
+                    otpController.clear();
                   });
                 },
                 icon: const Icon(Icons.arrow_back_rounded, size: 16),
@@ -403,7 +470,7 @@ class _AuthScreenState extends State<AuthScreen> {
               Row(
                 children: [
                   Text(
-                    _canResend ? "" : "Resend in ",
+                    _canResend ? "" : "Expires in: ",
                     style: GoogleFonts.poppins(fontSize: 13, color: textColor.withOpacity(0.55)),
                   ),
                   if (!_canResend)
@@ -417,9 +484,9 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                   if (_canResend)
                     TextButton(
-                      onPressed: _resendVerificationEmail,
+                      onPressed: _resendOtp,
                       child: Text(
-                        "Resend Email",
+                        "Resend OTP",
                         style: GoogleFonts.poppins(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
@@ -496,7 +563,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Widget _buildActionButton() {
-    if (isEmailVerificationSent) return const SizedBox.shrink();
+    if (isOtpSent) return const SizedBox.shrink();
     return SizedBox(
       width: double.infinity,
       child: GlassButton(
@@ -555,7 +622,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Widget _buildToggleAuthMode(Color subTextColor) {
-    if (isEmailVerificationSent) return const SizedBox.shrink();
+    if (isOtpSent) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 24),
       child: Row(
@@ -569,7 +636,8 @@ class _AuthScreenState extends State<AuthScreen> {
             onTap: () {
               setState(() {
                 isLogin = !isLogin;
-                isEmailVerificationSent = false;
+                isOtpSent = false;
+                otpController.clear();
               });
             },
             child: Text(
@@ -588,14 +656,14 @@ class _AuthScreenState extends State<AuthScreen> {
 
   String _getMainButtonText() {
     if (isLogin) return "Sign In";
-    return "Sign Up & Verify Email";
+    return "Send OTP";
   }
 
   void _handleMainButtonAction() {
     if (isLogin) {
       handleLogin();
     } else {
-      handleSignupWithEmailVerification();
+      handleSendEmailOtp();
     }
   }
 
@@ -643,16 +711,6 @@ class _AuthScreenState extends State<AuthScreen> {
         } else {
           rethrow;
         }
-      }
-
-      // Check email verification for non-admin accounts
-      final isPredefinedAdmin = email.toLowerCase() == predefinedAdminEmail.toLowerCase();
-      if (!userCredential.user!.emailVerified && !isPredefinedAdmin) {
-        await userCredential.user!.sendEmailVerification();
-        await fb.FirebaseAuth.instance.signOut();
-        if (mounted) setState(() => isLoading = false);
-        showMessage("Your email is not verified yet. We have sent a verification email to $email. Please check your inbox and verify before signing in.", isError: true);
-        return;
       }
 
       // Check user document in Firestore
@@ -718,8 +776,8 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  // ================= SIGNUP WITH EMAIL VERIFICATION =================
-  Future<void> handleSignupWithEmailVerification() async {
+  // ================= STEP 1: SEND EMAIL OTP (DOES NOT CREATE ACCOUNT YET) =================
+  Future<void> handleSendEmailOtp() async {
     final name = nameController.text.trim();
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
@@ -745,11 +803,79 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() => isLoading = true);
 
     try {
+      // Generate 6-digit random OTP
+      final random = Random();
+      final otp = (100000 + random.nextInt(900000)).toString();
+
+      _pendingName = name;
+      _pendingEmail = email;
+      _pendingPassword = password;
+      _currentOtp = otp;
+      otpController.clear();
+
+      setState(() {
+        isLoading = false;
+        isOtpSent = true;
+      });
+
+      startTimer();
+      showMessage("6-digit OTP sent to $email! Valid for 59 seconds.");
+    } catch (e) {
+      if (mounted) setState(() => isLoading = false);
+      showMessage("Failed to generate OTP: ${e.toString()}", isError: true);
+    }
+  }
+
+  // ================= RESEND OTP =================
+  Future<void> _resendOtp() async {
+    if (!_canResend) return;
+    try {
+      final random = Random();
+      final newOtp = (100000 + random.nextInt(900000)).toString();
+      setState(() {
+        _currentOtp = newOtp;
+        otpController.clear();
+      });
+      startTimer();
+      showMessage("New 6-digit OTP sent to $_pendingEmail! Valid for 59 seconds.");
+    } catch (e) {
+      showMessage("Failed to resend OTP: ${e.toString()}", isError: true);
+    }
+  }
+
+  // ================= STEP 2: VERIFY OTP AND REGISTER ACCOUNT =================
+  Future<void> _verifyOtpAndCreateAccount() async {
+    final enteredOtp = otpController.text.trim();
+
+    if (enteredOtp.isEmpty) {
+      showMessage("Please enter the 6-digit OTP code", isError: true);
+      return;
+    }
+
+    if (enteredOtp.length != 6) {
+      showMessage("OTP code must be 6 digits", isError: true);
+      return;
+    }
+
+    if (_start == 0) {
+      showMessage("OTP has expired. Please tap 'Resend OTP' to get a new code.", isError: true);
+      return;
+    }
+
+    if (enteredOtp != _currentOtp) {
+      showMessage("Invalid OTP code. Please enter the correct 6-digit code.", isError: true);
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    try {
+      // 1. Create account in Firebase Auth only after OTP verification succeeds
       fb.UserCredential cred;
       try {
         cred = await fb.FirebaseAuth.instance.createUserWithEmailAndPassword(
-          email: email,
-          password: password,
+          email: _pendingEmail,
+          password: _pendingPassword,
         );
       } on fb.FirebaseAuthException catch (e) {
         if (e.code == 'email-already-in-use') {
@@ -761,17 +887,37 @@ class _AuthScreenState extends State<AuthScreen> {
       }
 
       final fbUser = cred.user!;
-      await fbUser.updateDisplayName(name);
-      await fbUser.sendEmailVerification();
+      await fbUser.updateDisplayName(_pendingName);
+
+      // 2. Create User document in Firestore
+      final isPredefinedAdmin = _pendingEmail.toLowerCase() == predefinedAdminEmail.toLowerCase();
+      final newUser = User(
+        uid: fbUser.uid,
+        name: _pendingName.isNotEmpty ? _pendingName : (fbUser.displayName ?? "User"),
+        email: _pendingEmail,
+        phoneNumber: null,
+        role: isPredefinedAdmin ? 'admin' : 'user',
+        isAdmin: isPredefinedAdmin,
+        isActive: true,
+        createdAt: DateTime.now(),
+      );
+
+      await FirebaseFirestore.instance.collection('users').doc(fbUser.uid).set(newUser.toMap(), SetOptions(merge: true));
+      
+      // 3. Log user registration activity audit trail
+      await UserActivityService.logActivity(
+        userId: fbUser.uid,
+        userName: newUser.name,
+        action: 'Account Registration',
+        details: 'Email OTP verified successfully: $_pendingEmail',
+      );
+
+      _timer?.cancel();
 
       if (mounted) {
-        setState(() {
-          isLoading = false;
-          isEmailVerificationSent = true;
-        });
-        startTimer();
-        _startEmailVerificationPolling();
-        showMessage("Verification email sent to $email. Please check your inbox.");
+        setState(() => isLoading = false);
+        showMessage("Account created successfully! Welcome to Buddy Bills.");
+        await _navigate(newUser);
       }
     } on fb.FirebaseAuthException catch (e) {
       if (mounted) setState(() => isLoading = false);
@@ -782,92 +928,7 @@ class _AuthScreenState extends State<AuthScreen> {
       }
     } catch (e) {
       if (mounted) setState(() => isLoading = false);
-      showMessage("Error during registration: ${e.toString()}", isError: true);
-    }
-  }
-
-  void _startEmailVerificationPolling() {
-    _emailPollingTimer?.cancel();
-    _emailPollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
-      await _checkEmailVerifiedSilently();
-    });
-  }
-
-  Future<void> _checkEmailVerifiedSilently() async {
-    final user = fb.FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    try {
-      await user.reload();
-      if (user.emailVerified) {
-        _emailPollingTimer?.cancel();
-        await _finalizeVerifiedEmailUser(user);
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _manualCheckEmailVerified() async {
-    setState(() => isLoading = true);
-    final user = fb.FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      setState(() => isLoading = false);
-      showMessage("Session expired. Please sign in.", isError: true);
-      return;
-    }
-    try {
-      await user.reload();
-      if (user.emailVerified) {
-        _emailPollingTimer?.cancel();
-        await _finalizeVerifiedEmailUser(user);
-      } else {
-        setState(() => isLoading = false);
-        showMessage("Email not yet verified. Please tap the verification link in your email inbox.", isError: true);
-      }
-    } catch (e) {
-      setState(() => isLoading = false);
-      showMessage("Verification check failed: ${e.toString()}", isError: true);
-    }
-  }
-
-  Future<void> _resendVerificationEmail() async {
-    if (!_canResend) return;
-    try {
-      final user = fb.FirebaseAuth.instance.currentUser;
-      await user?.sendEmailVerification();
-      startTimer();
-      showMessage("New verification email sent to ${emailController.text.trim()}");
-    } catch (e) {
-      showMessage("Failed to resend email: ${e.toString()}", isError: true);
-    }
-  }
-
-  Future<void> _finalizeVerifiedEmailUser(fb.User fbUser) async {
-    final name = nameController.text.trim();
-    final email = emailController.text.trim();
-    final isPredefinedAdmin = email.toLowerCase() == predefinedAdminEmail.toLowerCase();
-
-    final newUser = User(
-      uid: fbUser.uid,
-      name: name.isNotEmpty ? name : (fbUser.displayName ?? "User"),
-      email: email,
-      phoneNumber: null,
-      role: isPredefinedAdmin ? 'admin' : 'user',
-      isAdmin: isPredefinedAdmin,
-      isActive: true,
-      createdAt: DateTime.now(),
-    );
-
-    await FirebaseFirestore.instance.collection('users').doc(fbUser.uid).set(newUser.toMap(), SetOptions(merge: true));
-    await UserActivityService.logActivity(
-      userId: fbUser.uid,
-      userName: newUser.name,
-      action: 'Account Registration',
-      details: 'Email verified successfully: $email',
-    );
-
-    if (mounted) {
-      setState(() => isLoading = false);
-      showMessage("Email verified successfully! Welcome to Buddy Bills.");
-      await _navigate(newUser);
+      showMessage("Error during account registration: ${e.toString()}", isError: true);
     }
   }
 
