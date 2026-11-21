@@ -31,21 +31,20 @@ class _AuthScreenState extends State<AuthScreen> {
   static const String predefinedAdminEmail = "admin@buddybills.com";
 
   bool isLogin = true;
-  bool isOtpSent = false;
+  bool isEmailVerificationSent = false;
   bool isLoading = false;
   bool passwordVisible = false;
+  bool confirmPasswordVisible = false;
 
   Timer? _timer;
+  Timer? _emailPollingTimer;
   int _start = 60;
   bool _canResend = false;
 
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+  final confirmPasswordController = TextEditingController();
   final nameController = TextEditingController();
-  final phoneController = TextEditingController();
-  final otpController = TextEditingController();
-
-  String? verificationId;
 
   Color get primaryBrandColor => PremiumTheme.goldenPrimary;
 
@@ -64,11 +63,11 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _emailPollingTimer?.cancel();
     emailController.dispose();
     passwordController.dispose();
+    confirmPasswordController.dispose();
     nameController.dispose();
-    phoneController.dispose();
-    otpController.dispose();
     super.dispose();
   }
 
@@ -131,11 +130,11 @@ class _AuthScreenState extends State<AuthScreen> {
                         _buildAuthForm(isDark, textColor),
                         const SizedBox(height: 24),
                         _buildActionButton(),
-                        if (isLogin && !isOtpSent) _buildSocialLogin(textColor, isDark),
+                        if (isLogin && !isEmailVerificationSent) _buildSocialLogin(textColor, isDark),
                       ],
                     ),
                   ),
-                  _buildToggleAuthMode(subTextColor),
+                  if (!isEmailVerificationSent) _buildToggleAuthMode(subTextColor),
                 ],
               ),
             ),
@@ -191,9 +190,9 @@ class _AuthScreenState extends State<AuthScreen> {
     if (isLogin) {
       title = "Welcome Back";
       subtitle = "Sign in with your email and password";
-    } else if (isOtpSent) {
-      title = "Verify Phone Number";
-      subtitle = "Enter the 6-digit OTP code sent to your phone";
+    } else if (isEmailVerificationSent) {
+      title = "Verify Your Email";
+      subtitle = "We have sent a verification email to your inbox";
     } else {
       title = "Create Account";
       subtitle = "Register to start splitting bills with friends";
@@ -226,7 +225,7 @@ class _AuthScreenState extends State<AuthScreen> {
     return Column(
       children: [
         // Name field for Signup
-        if (!isLogin && !isOtpSent) ...[
+        if (!isLogin && !isEmailVerificationSent) ...[
           _buildPremiumTextField(
             nameController,
             "Full Name",
@@ -238,89 +237,166 @@ class _AuthScreenState extends State<AuthScreen> {
         ],
 
         // Email field
-        if (!isOtpSent) ...[
+        if (!isEmailVerificationSent) ...[
           _buildPremiumTextField(
             emailController,
             "Email Address",
             Icons.alternate_email_rounded,
             isDark,
             keyboardType: TextInputType.emailAddress,
-            hint: "yourname@example.com",
+            hint: "yourname@gmail.com",
           ),
           const SizedBox(height: 16),
         ],
 
         // Password field
-        if (!isOtpSent) ...[
+        if (!isEmailVerificationSent) ...[
           _buildPremiumTextField(
             passwordController,
             "Password",
             Icons.lock_rounded,
             isDark,
             isPassword: true,
+            isPasswordVisible: passwordVisible,
+            onToggleVisibility: () => setState(() => passwordVisible = !passwordVisible),
             hint: "••••••••",
           ),
           const SizedBox(height: 16),
         ],
 
-        // Phone number field for Signup
-        if (!isLogin && !isOtpSent) ...[
+        // Confirm Password field for Signup
+        if (!isLogin && !isEmailVerificationSent) ...[
           _buildPremiumTextField(
-            phoneController,
-            "Phone Number",
-            Icons.phone_rounded,
+            confirmPasswordController,
+            "Confirm Password",
+            Icons.lock_outline_rounded,
             isDark,
-            keyboardType: TextInputType.phone,
-            hint: "+923001234567 (with country code)",
+            isPassword: true,
+            isPasswordVisible: confirmPasswordVisible,
+            onToggleVisibility: () => setState(() => confirmPasswordVisible = !confirmPasswordVisible),
+            hint: "••••••••",
           ),
         ],
 
-        // OTP verification step
-        if (isOtpSent) ...[
-          Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: primaryBrandColor.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: primaryBrandColor.withOpacity(0.3)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.sms_rounded, color: primaryBrandColor, size: 18),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      "Code sent to ${phoneController.text.trim()}",
-                      style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.bold, color: primaryBrandColor),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
+        // Email verification step
+        if (isEmailVerificationSent) ...[
+          _buildEmailVerificationStep(isDark, textColor),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildEmailVerificationStep(bool isDark, Color textColor) {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            primaryBrandColor.withOpacity(0.18),
+            primaryBrandColor.withOpacity(0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: primaryBrandColor.withOpacity(0.45), width: 1.5),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: primaryBrandColor.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.mark_email_read_rounded, size: 40, color: primaryBrandColor),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            "Verify Your Email",
+            style: GoogleFonts.outfit(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            "Verification email sent to:",
+            style: GoogleFonts.poppins(fontSize: 12, color: textColor.withOpacity(0.7)),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: primaryBrandColor.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              emailController.text.trim(),
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: primaryBrandColor,
               ),
             ),
           ),
-          const SizedBox(height: 20),
-          _buildPremiumTextField(
-            otpController,
-            "6-Digit Verification Code",
-            Icons.shield_rounded,
-            isDark,
-            keyboardType: TextInputType.number,
-            hint: "123456",
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.black38 : Colors.white70,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: primaryBrandColor),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    "Waiting for verification... Open your email and tap the confirmation link.",
+                    style: GoogleFonts.poppins(fontSize: 11, color: textColor.withOpacity(0.85)),
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: isLoading ? null : _manualCheckEmailVerified,
+              icon: const Icon(Icons.check_circle_rounded, size: 20),
+              label: Text(
+                isLoading ? "Checking..." : "I Have Verified My Email",
+                style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryBrandColor,
+                foregroundColor: const Color(0xFF0F172A),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 4,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               TextButton.icon(
                 onPressed: () {
+                  _emailPollingTimer?.cancel();
                   setState(() {
-                    isOtpSent = false;
+                    isEmailVerificationSent = false;
                   });
                 },
-                icon: const Icon(Icons.edit_rounded, size: 16),
+                icon: const Icon(Icons.arrow_back_rounded, size: 16),
                 label: Text("Edit Details", style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)),
                 style: TextButton.styleFrom(foregroundColor: primaryBrandColor),
               ),
@@ -341,9 +417,9 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                   if (_canResend)
                     TextButton(
-                      onPressed: sendOtp,
+                      onPressed: _resendVerificationEmail,
                       child: Text(
-                        "Resend Code",
+                        "Resend Email",
                         style: GoogleFonts.poppins(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
@@ -356,7 +432,7 @@ class _AuthScreenState extends State<AuthScreen> {
             ],
           ),
         ],
-      ],
+      ),
     );
   }
 
@@ -366,6 +442,8 @@ class _AuthScreenState extends State<AuthScreen> {
     IconData icon,
     bool isDark, {
     bool isPassword = false,
+    bool isPasswordVisible = false,
+    VoidCallback? onToggleVisibility,
     TextInputType keyboardType = TextInputType.text,
     String? hint,
   }) {
@@ -383,7 +461,7 @@ class _AuthScreenState extends State<AuthScreen> {
         const SizedBox(height: 8),
         TextField(
           controller: controller,
-          obscureText: isPassword && !passwordVisible,
+          obscureText: isPassword && !isPasswordVisible,
           keyboardType: keyboardType,
           style: GoogleFonts.poppins(color: isDark ? Colors.white : Colors.black87),
           decoration: InputDecoration(
@@ -404,11 +482,11 @@ class _AuthScreenState extends State<AuthScreen> {
             suffixIcon: isPassword
                 ? IconButton(
                     icon: Icon(
-                      passwordVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                      isPasswordVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
                       color: Colors.grey,
                       size: 20,
                     ),
-                    onPressed: () => setState(() => passwordVisible = !passwordVisible),
+                    onPressed: onToggleVisibility,
                   )
                 : null,
           ),
@@ -418,14 +496,13 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Widget _buildActionButton() {
+    if (isEmailVerificationSent) return const SizedBox.shrink();
     return SizedBox(
       width: double.infinity,
       child: GlassButton(
         onPressed: isLoading ? () {} : _handleMainButtonAction,
         label: isLoading ? "Please wait..." : _getMainButtonText(),
-        icon: isLogin 
-            ? Icons.login_rounded 
-            : (isOtpSent ? Icons.check_circle_rounded : Icons.arrow_forward_rounded),
+        icon: isLogin ? Icons.login_rounded : Icons.arrow_forward_rounded,
         color: primaryBrandColor,
         isDarkMode: Theme.of(context).brightness == Brightness.dark,
       ),
@@ -478,6 +555,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Widget _buildToggleAuthMode(Color subTextColor) {
+    if (isEmailVerificationSent) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 24),
       child: Row(
@@ -491,7 +569,7 @@ class _AuthScreenState extends State<AuthScreen> {
             onTap: () {
               setState(() {
                 isLogin = !isLogin;
-                isOtpSent = false;
+                isEmailVerificationSent = false;
               });
             },
             child: Text(
@@ -510,15 +588,14 @@ class _AuthScreenState extends State<AuthScreen> {
 
   String _getMainButtonText() {
     if (isLogin) return "Sign In";
-    if (isOtpSent) return "Verify & Register";
-    return "Send Verification Code";
+    return "Sign Up & Verify Email";
   }
 
   void _handleMainButtonAction() {
     if (isLogin) {
       handleLogin();
     } else {
-      isOtpSent ? verifyOtpAndCreateAccount() : sendOtp();
+      handleSignupWithEmailVerification();
     }
   }
 
@@ -566,6 +643,16 @@ class _AuthScreenState extends State<AuthScreen> {
         } else {
           rethrow;
         }
+      }
+
+      // Check email verification for non-admin accounts
+      final isPredefinedAdmin = email.toLowerCase() == predefinedAdminEmail.toLowerCase();
+      if (!userCredential.user!.emailVerified && !isPredefinedAdmin) {
+        await userCredential.user!.sendEmailVerification();
+        await fb.FirebaseAuth.instance.signOut();
+        if (mounted) setState(() => isLoading = false);
+        showMessage("Your email is not verified yet. We have sent a verification email to $email. Please check your inbox and verify before signing in.", isError: true);
+        return;
       }
 
       // Check user document in Firestore
@@ -631,18 +718,18 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  // ================= SIGNUP WITH OTP VERIFICATION =================
-  Future<void> sendOtp() async {
+  // ================= SIGNUP WITH EMAIL VERIFICATION =================
+  Future<void> handleSignupWithEmailVerification() async {
     final name = nameController.text.trim();
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
-    String phone = phoneController.text.trim();
+    final confirmPassword = confirmPasswordController.text.trim();
 
     if (name.isEmpty) {
       showMessage("Please enter your full name", isError: true);
       return;
     }
-    if (email.isEmpty || !email.contains('@')) {
+    if (email.isEmpty || !email.contains('@') || !email.contains('.')) {
       showMessage("Please enter a valid email address", isError: true);
       return;
     }
@@ -650,129 +737,137 @@ class _AuthScreenState extends State<AuthScreen> {
       showMessage("Password must be at least 6 characters", isError: true);
       return;
     }
-    if (phone.isEmpty) {
-      showMessage("Please enter your phone number", isError: true);
-      return;
-    }
-    if (!phone.startsWith('+')) {
-      showMessage("Please include country code with '+' (e.g. +923001234567)", isError: true);
-      return;
-    }
-    if (phone.length < 9) {
-      showMessage("Phone number is too short", isError: true);
+    if (password != confirmPassword) {
+      showMessage("Passwords do not match. Please verify your confirm password.", isError: true);
       return;
     }
 
     setState(() => isLoading = true);
 
     try {
-      await fb.FirebaseAuth.instance.verifyPhoneNumber(
-        phoneNumber: phone,
-        verificationCompleted: (cred) async {
-          await _finalizeSignupWithPhoneCred(cred);
-        },
-        verificationFailed: (e) {
+      fb.UserCredential cred;
+      try {
+        cred = await fb.FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      } on fb.FirebaseAuthException catch (e) {
+        if (e.code == 'email-already-in-use') {
           setState(() => isLoading = false);
-          String errorMsg = e.message ?? e.code;
-          showMessage("OTP Verification Failed: $errorMsg", isError: true);
-        },
-        codeSent: (id, _) {
-          verificationId = id;
-          setState(() {
-            isOtpSent = true;
-            isLoading = false;
-          });
-          startTimer();
-          showMessage("6-digit code sent to $phone");
-        },
-        codeAutoRetrievalTimeout: (id) => verificationId = id,
-      );
+          showMessage("This email is already registered. Please sign in.", isError: true);
+          return;
+        }
+        rethrow;
+      }
+
+      final fbUser = cred.user!;
+      await fbUser.updateDisplayName(name);
+      await fbUser.sendEmailVerification();
+
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+          isEmailVerificationSent = true;
+        });
+        startTimer();
+        _startEmailVerificationPolling();
+        showMessage("Verification email sent to $email. Please check your inbox.");
+      }
+    } on fb.FirebaseAuthException catch (e) {
+      if (mounted) setState(() => isLoading = false);
+      if (e.code == 'invalid-email') {
+        showMessage("Please provide a valid email address.", isError: true);
+      } else {
+        showMessage(e.message ?? "Registration failed [${e.code}]", isError: true);
+      }
     } catch (e) {
-      setState(() => isLoading = false);
-      showMessage("Error sending OTP: ${e.toString()}", isError: true);
+      if (mounted) setState(() => isLoading = false);
+      showMessage("Error during registration: ${e.toString()}", isError: true);
     }
   }
 
-  Future<void> verifyOtpAndCreateAccount() async {
-    final smsCode = otpController.text.trim();
-    if (smsCode.isEmpty || smsCode.length < 6) {
-      showMessage("Please enter the 6-digit OTP code", isError: true);
-      return;
-    }
+  void _startEmailVerificationPolling() {
+    _emailPollingTimer?.cancel();
+    _emailPollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      await _checkEmailVerifiedSilently();
+    });
+  }
 
-    if (verificationId == null) {
-      showMessage("Verification session expired. Please request a new code.", isError: true);
-      return;
-    }
-
-    setState(() => isLoading = true);
-
+  Future<void> _checkEmailVerifiedSilently() async {
+    final user = fb.FirebaseAuth.instance.currentUser;
+    if (user == null) return;
     try {
-      final phoneCred = fb.PhoneAuthProvider.credential(
-        verificationId: verificationId!,
-        smsCode: smsCode,
-      );
+      await user.reload();
+      if (user.emailVerified) {
+        _emailPollingTimer?.cancel();
+        await _finalizeVerifiedEmailUser(user);
+      }
+    } catch (_) {}
+  }
 
-      await _finalizeSignupWithPhoneCred(phoneCred);
-    } on fb.FirebaseAuthException catch (e) {
+  Future<void> _manualCheckEmailVerified() async {
+    setState(() => isLoading = true);
+    final user = fb.FirebaseAuth.instance.currentUser;
+    if (user == null) {
       setState(() => isLoading = false);
-      if (e.code == 'invalid-verification-code') {
-        showMessage("Invalid verification code. Please check and try again.", isError: true);
-      } else if (e.code == 'session-expired') {
-        showMessage("Verification code expired. Please request a new code.", isError: true);
+      showMessage("Session expired. Please sign in.", isError: true);
+      return;
+    }
+    try {
+      await user.reload();
+      if (user.emailVerified) {
+        _emailPollingTimer?.cancel();
+        await _finalizeVerifiedEmailUser(user);
       } else {
-        showMessage(e.message ?? "Verification failed [${e.code}]", isError: true);
+        setState(() => isLoading = false);
+        showMessage("Email not yet verified. Please tap the verification link in your email inbox.", isError: true);
       }
     } catch (e) {
       setState(() => isLoading = false);
-      showMessage("Failed to verify: ${e.toString()}", isError: true);
+      showMessage("Verification check failed: ${e.toString()}", isError: true);
     }
   }
 
-  Future<void> _finalizeSignupWithPhoneCred(fb.PhoneAuthCredential phoneCred) async {
+  Future<void> _resendVerificationEmail() async {
+    if (!_canResend) return;
+    try {
+      final user = fb.FirebaseAuth.instance.currentUser;
+      await user?.sendEmailVerification();
+      startTimer();
+      showMessage("New verification email sent to ${emailController.text.trim()}");
+    } catch (e) {
+      showMessage("Failed to resend email: ${e.toString()}", isError: true);
+    }
+  }
+
+  Future<void> _finalizeVerifiedEmailUser(fb.User fbUser) async {
     final name = nameController.text.trim();
     final email = emailController.text.trim();
-    final password = passwordController.text.trim();
-    final phone = phoneController.text.trim();
+    final isPredefinedAdmin = email.toLowerCase() == predefinedAdminEmail.toLowerCase();
 
-    try {
-      // 1. Sign in with the verified phone credential
-      final userCred = await fb.FirebaseAuth.instance.signInWithCredential(phoneCred);
-      final fbUser = userCred.user!;
+    final newUser = User(
+      uid: fbUser.uid,
+      name: name.isNotEmpty ? name : (fbUser.displayName ?? "User"),
+      email: email,
+      phoneNumber: null,
+      role: isPredefinedAdmin ? 'admin' : 'user',
+      isAdmin: isPredefinedAdmin,
+      isActive: true,
+      createdAt: DateTime.now(),
+    );
 
-      // 2. Link Email & Password credential so user can log in with Email and Password
-      try {
-        await fbUser.linkWithCredential(
-          fb.EmailAuthProvider.credential(email: email, password: password),
-        );
-      } catch (_) {
-        try {
-          await fbUser.updateEmail(email);
-          await fbUser.updatePassword(password);
-        } catch (_) {}
-      }
+    await FirebaseFirestore.instance.collection('users').doc(fbUser.uid).set(newUser.toMap(), SetOptions(merge: true));
+    await UserActivityService.logActivity(
+      userId: fbUser.uid,
+      userName: newUser.name,
+      action: 'Account Registration',
+      details: 'Email verified successfully: $email',
+    );
 
-      await fbUser.updateDisplayName(name);
-
-      // 3. Create Firestore record with standard 'user' role
-      final newUser = User(
-        uid: fbUser.uid,
-        name: name,
-        email: email,
-        phoneNumber: phone,
-        role: 'user',
-        isAdmin: false,
-        isActive: true,
-        createdAt: DateTime.now(),
-      );
-
-      await FirebaseFirestore.instance.collection('users').doc(fbUser.uid).set(newUser.toMap(), SetOptions(merge: true));
-
-      // 4. Enter application
-      await _navigate(newUser);
-    } catch (e) {
+    if (mounted) {
       setState(() => isLoading = false);
-      showMessage("Signup finalization failed: ${e.toString()}", isError: true);
+      showMessage("Email verified successfully! Welcome to Buddy Bills.");
+      await _navigate(newUser);
     }
   }
 
