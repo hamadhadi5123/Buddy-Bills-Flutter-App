@@ -33,16 +33,49 @@ class UserActivityService {
   }
 
   // Get all activities (for admin)
-  static Stream<List<UserActivity>> getAllActivities({int limit = 50}) {
+  static Stream<List<UserActivity>> getAllActivities({int limit = 100}) {
     return _activitiesCollection
         .snapshots()
         .map((snapshot) {
       final list = snapshot.docs
-          .map((doc) => UserActivity.fromMap(doc.data() as Map<String, dynamic>))
+          .map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            if (data['id'] == null || (data['id'] as String).isEmpty) {
+              data['id'] = doc.id;
+            }
+            return UserActivity.fromMap(data);
+          })
           .toList();
       list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
       return list.take(limit).toList();
     });
+  }
+
+  // Delete single activity log (Admin only)
+  static Future<bool> deleteActivity(String activityId) async {
+    try {
+      await _activitiesCollection.doc(activityId).delete();
+      return true;
+    } catch (e) {
+      debugPrint('Error deleting activity $activityId: $e');
+      return false;
+    }
+  }
+
+  // Clear all activity logs (Admin only)
+  static Future<bool> clearAllActivities() async {
+    try {
+      final snapshot = await _activitiesCollection.get();
+      final batch = _firestore.batch();
+      for (var doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      return true;
+    } catch (e) {
+      debugPrint('Error clearing activities: $e');
+      return false;
+    }
   }
 
   // Get activities for specific user

@@ -998,43 +998,171 @@ class _EnhancedAdminDashboardState extends State<EnhancedAdminDashboard> with Si
         final activities = snapshot.data ?? [];
         if (activities.isEmpty) return Center(child: Text('System logs are empty', style: TextStyle(color: textColor.withOpacity(0.6))));
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(20),
-          itemCount: activities.length,
-          itemBuilder: (context, index) {
-            final activity = activities[index];
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: isDark ? primaryColor.withOpacity(0.1) : Colors.grey.withOpacity(0.2))
-              ),
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                   CircleAvatar(
-                      radius: 18, 
-                      backgroundColor: primaryColor.withOpacity(0.2), 
-                      child: Text(activity.userName[0].toUpperCase(), style: TextStyle(fontSize: 12, color: primaryColor, fontWeight: FontWeight.bold))
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(activity.userName, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14, color: textColor)),
-                        Text(activity.details, style: GoogleFonts.manrope(fontSize: 12, color: textColor.withOpacity(0.7))),
-                      ],
+                  Text(
+                    "Audit Logs (${activities.length})",
+                    style: GoogleFonts.outfit(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
                     ),
                   ),
-                  Text(_formatTimestamp(activity.timestamp), style: GoogleFonts.manrope(fontSize: 10, color: textColor.withOpacity(0.5))),
+                  TextButton.icon(
+                    onPressed: () => _confirmClearAllLogs(),
+                    icon: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent, size: 18),
+                    label: Text(
+                      "Clear All Logs",
+                      style: GoogleFonts.manrope(
+                        color: Colors.redAccent,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.redAccent.withOpacity(0.1),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    ),
+                  ),
                 ],
               ),
-            );
-          },
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                itemCount: activities.length,
+                itemBuilder: (context, index) {
+                  final activity = activities[index];
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: isDark ? primaryColor.withOpacity(0.1) : Colors.grey.withOpacity(0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 18, 
+                          backgroundColor: primaryColor.withOpacity(0.2), 
+                          child: Text(
+                            activity.userName.isNotEmpty ? activity.userName[0].toUpperCase() : '?',
+                            style: TextStyle(fontSize: 12, color: primaryColor, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(activity.userName, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14, color: textColor)),
+                              Text(activity.details, style: GoogleFonts.manrope(fontSize: 12, color: textColor.withOpacity(0.7))),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(_formatTimestamp(activity.timestamp), style: GoogleFonts.manrope(fontSize: 10, color: textColor.withOpacity(0.5))),
+                            const SizedBox(height: 4),
+                            InkWell(
+                              onTap: () => _confirmDeleteSingleLog(activity),
+                              borderRadius: BorderRadius.circular(8),
+                              child: Padding(
+                                padding: const EdgeInsets.all(4),
+                                child: Icon(Icons.delete_outline_rounded, size: 18, color: Colors.redAccent.withOpacity(0.85)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  void _confirmDeleteSingleLog(UserActivity activity) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text("Delete Log Entry", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.redAccent)),
+        content: Text("Are you sure you want to delete this log entry?\n\n\"${activity.details}\"",
+            style: GoogleFonts.manrope(color: isDark ? Colors.white70 : Colors.black87, fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final success = await UserActivityService.deleteActivity(activity.id);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(success ? "Log entry deleted." : "Failed to delete log entry."),
+                    backgroundColor: success ? const Color(0xFF1E2230) : Colors.redAccent,
+                  ),
+                );
+              }
+            },
+            child: const Text("Delete", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmClearAllLogs() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text("Clear All Logs", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.redAccent)),
+        content: Text("Are you sure you want to permanently delete all audit logs? This action cannot be undone.",
+            style: GoogleFonts.manrope(color: isDark ? Colors.white70 : Colors.black87, fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final success = await UserActivityService.clearAllActivities();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(success ? "All audit logs cleared successfully." : "Failed to clear audit logs."),
+                    backgroundColor: success ? const Color(0xFF1E2230) : Colors.redAccent,
+                  ),
+                );
+              }
+            },
+            child: const Text("Clear All", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 

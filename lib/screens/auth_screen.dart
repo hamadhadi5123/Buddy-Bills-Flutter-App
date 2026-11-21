@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../models/user.dart';
 import '../services/user_activity_service.dart';
+import '../services/email_service.dart';
 import '../widgets/glass_widgets.dart';
 import '../theme/premium_theme.dart';
 import 'home_navigation.dart';
@@ -265,7 +266,7 @@ class _AuthScreenState extends State<AuthScreen> {
             isPassword: true,
             isPasswordVisible: passwordVisible,
             onToggleVisibility: () => setState(() => passwordVisible = !passwordVisible),
-            hint: "••••••••",
+            hint: "•••••••• (min 8 chars)",
           ),
           const SizedBox(height: 16),
         ],
@@ -280,7 +281,7 @@ class _AuthScreenState extends State<AuthScreen> {
             isPassword: true,
             isPasswordVisible: confirmPasswordVisible,
             onToggleVisibility: () => setState(() => confirmPasswordVisible = !confirmPasswordVisible),
-            hint: "••••••••",
+            hint: "•••••••• (min 8 chars)",
           ),
         ],
 
@@ -328,7 +329,7 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            "6-digit OTP code sent to:",
+            "6-digit OTP code sent to your official Gmail:",
             style: GoogleFonts.poppins(fontSize: 12, color: textColor.withOpacity(0.7)),
             textAlign: TextAlign.center,
           ),
@@ -350,30 +351,26 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
           const SizedBox(height: 14),
 
-          // Code display badge for quick dev & user convenience
+          // Security instruction info box (NO OTP CODE SHOWN ON SCREEN)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               color: isDark ? Colors.black45 : Colors.white70,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: primaryBrandColor.withOpacity(0.3)),
+              border: Border.all(color: primaryBrandColor.withOpacity(0.25)),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.shield_outlined, size: 18, color: primaryBrandColor),
-                const SizedBox(width: 8),
-                Text(
-                  "OTP Code: ",
-                  style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w500, color: textColor.withOpacity(0.85)),
-                ),
-                Text(
-                  _currentOtp ?? "------",
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2.5,
-                    color: primaryBrandColor,
+                Icon(Icons.mark_email_unread_rounded, size: 22, color: primaryBrandColor),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    "Please check your Gmail inbox and spam folder for the 6-digit code.",
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: textColor.withOpacity(0.85),
+                    ),
                   ),
                 ),
               ],
@@ -450,6 +447,71 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
           const SizedBox(height: 14),
+          if (EmailService.emailJsServiceId.isEmpty && EmailService.brevoApiKey.isEmpty) ...[
+            TextButton.icon(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    backgroundColor: const Color(0xFF1E2230),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    title: Text("Development OTP Code", style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text("For local testing, your 6-digit OTP code is:", style: GoogleFonts.poppins(color: Colors.white70, fontSize: 13)),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: primaryBrandColor.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: primaryBrandColor.withOpacity(0.4)),
+                          ),
+                          child: Text(
+                            _currentOtp ?? "------",
+                            style: GoogleFonts.poppins(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 6,
+                              color: primaryBrandColor,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          "To send this code directly to your real Gmail inbox, add your free EmailJS or Brevo key in lib/services/email_service.dart.",
+                          style: GoogleFonts.poppins(color: Colors.white54, fontSize: 11),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                    actions: [
+                      ElevatedButton(
+                        onPressed: () {
+                          if (_currentOtp != null) {
+                            otpController.text = _currentOtp!;
+                          }
+                          Navigator.pop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryBrandColor,
+                          foregroundColor: const Color(0xFF0F172A),
+                        ),
+                        child: Text("Auto-Fill & Close", style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              icon: Icon(Icons.help_outline_rounded, size: 16, color: primaryBrandColor.withOpacity(0.8)),
+              label: Text(
+                "Didn't receive email? Tap to view code (Dev Mode)",
+                style: GoogleFonts.poppins(fontSize: 12, color: primaryBrandColor.withOpacity(0.9), fontWeight: FontWeight.w500),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
 
           // Back to edit & Timer / Resend Row
           Row(
@@ -604,7 +666,27 @@ class _AuthScreenState extends State<AuthScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Image.asset('lib/assets/images/google.webp', height: 20),
+              Image.asset(
+                'lib/assets/images/google.webp',
+                height: 20,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 20,
+                  height: 20,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    "G",
+                    style: TextStyle(
+                      color: Color(0xFF4285F4),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
               const SizedBox(width: 12),
               Text(
                 "Google",
@@ -791,8 +873,8 @@ class _AuthScreenState extends State<AuthScreen> {
       showMessage("Please enter a valid email address", isError: true);
       return;
     }
-    if (password.length < 6) {
-      showMessage("Password must be at least 6 characters", isError: true);
+    if (password.length < 8) {
+      showMessage("Password must be at least 8 characters long", isError: true);
       return;
     }
     if (password != confirmPassword) {
@@ -813,13 +895,27 @@ class _AuthScreenState extends State<AuthScreen> {
       _currentOtp = otp;
       otpController.clear();
 
+      // Dispatch real email via EmailService
+      final emailResult = await EmailService.sendOtpEmail(
+        recipientEmail: email,
+        otpCode: otp,
+        recipientName: name,
+      );
+
       setState(() {
         isLoading = false;
         isOtpSent = true;
       });
 
       startTimer();
-      showMessage("6-digit OTP sent to $email! Valid for 59 seconds.");
+
+      if (emailResult['success'] == true) {
+        showMessage("Verification code sent to $email! Please check your inbox.");
+      } else if (emailResult['isConfigRequired'] == true) {
+        showMessage("Code generated for $email! Please configure EmailJS or Brevo in email_service.dart to receive emails.");
+      } else {
+        showMessage("Email dispatch warning: ${emailResult['message']}", isError: true);
+      }
     } catch (e) {
       if (mounted) setState(() => isLoading = false);
       showMessage("Failed to generate OTP: ${e.toString()}", isError: true);
@@ -836,8 +932,23 @@ class _AuthScreenState extends State<AuthScreen> {
         _currentOtp = newOtp;
         otpController.clear();
       });
+
+      // Dispatch real email via EmailService
+      final emailResult = await EmailService.sendOtpEmail(
+        recipientEmail: _pendingEmail,
+        otpCode: newOtp,
+        recipientName: _pendingName,
+      );
+
       startTimer();
-      showMessage("New 6-digit OTP sent to $_pendingEmail! Valid for 59 seconds.");
+
+      if (emailResult['success'] == true) {
+        showMessage("New verification code sent to $_pendingEmail! Valid for 59 seconds.");
+      } else if (emailResult['isConfigRequired'] == true) {
+        showMessage("New OTP generated for $_pendingEmail! Please configure EmailJS or Brevo in email_service.dart.");
+      } else {
+        showMessage("Email dispatch warning: ${emailResult['message']}", isError: true);
+      }
     } catch (e) {
       showMessage("Failed to resend OTP: ${e.toString()}", isError: true);
     }
