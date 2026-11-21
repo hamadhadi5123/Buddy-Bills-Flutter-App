@@ -46,6 +46,10 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       _snack("Hmm, we couldn't find anyone with that email.");
       return;
     }
+    if (user.uid == widget.currentUserUid) {
+      _snack("You are automatically included as the group creator!");
+      return;
+    }
     if (selectedUsers.any((u) => u.uid == user.uid)) {
       _snack("This person is already in the list!");
       return;

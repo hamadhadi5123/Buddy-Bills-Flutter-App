@@ -277,6 +277,7 @@ class _HomeNavigationState extends State<HomeNavigation> {
                                     builder: (context) => GroupDetailScreen(
                                       group: group,
                                       onAddMember: (mUid, adderUid) async {
+                                        if (group.members.contains(mUid)) return;
                                         final updatedMembers = [...group.members, mUid];
                                         final updatedAddedBy = Map<String, String>.from(group.memberAddedBy);
                                         updatedAddedBy[mUid] = adderUid;

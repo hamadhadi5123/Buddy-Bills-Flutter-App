@@ -77,6 +77,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       builder: (context, groupSnap) {
         final currentGroup = groupSnap.data ?? widget.group;
         final bool isCreator = currentGroup.createdBy == widget.currentUserUid;
+        final currentUser = widget.allUsers.firstWhere(
+          (u) => u.uid == widget.currentUserUid,
+          orElse: () => model.User(uid: widget.currentUserUid, name: "User", email: "", createdAt: DateTime.now()),
+        );
+        final bool isPlatformAdmin = currentUser.isAdmin || currentUser.role.toLowerCase() == 'admin' || currentUser.email == 'admin@buddybills.com';
+        final bool hasAdminRights = isCreator || isPlatformAdmin;
 
         return StreamBuilder<List<Expense>>(
           stream: db.streamGroupExpenses(currentGroup.id!),
@@ -114,7 +120,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                       backgroundColor: Colors.transparent,
                       elevation: 0,
                       actions: [
-                        if (isCreator)
+                        if (hasAdminRights)
                           IconButton(
                             icon: Icon(Icons.edit_rounded, color: primaryBrandColor),
                             tooltip: "Edit Group",
@@ -124,10 +130,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                           icon: Icon(Icons.forum_outlined, color: primaryBrandColor),
                           tooltip: "Group Chat",
                           onPressed: () {
-                            final currentUser = widget.allUsers.firstWhere(
-                              (u) => u.uid == widget.currentUserUid,
-                              orElse: () => model.User(uid: widget.currentUserUid, name: "User", email: "", createdAt: DateTime.now()),
-                            );
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -142,9 +144,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                         IconButton(
                           icon: Icon(Icons.person_add_rounded, color: primaryBrandColor),
                           tooltip: "Add Member",
-                          onPressed: _showAddMemberDialog,
+                          onPressed: () => _showAddMemberDialog(currentGroup),
                         ),
-                        if (isCreator)
+                        if (hasAdminRights)
                           IconButton(
                             icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
                             tooltip: "Delete Group",
@@ -170,7 +172,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const SizedBox(height: 10), // Space for AppBar
-                              _buildGlassHeader(currentGroup, textColor, isSmallScreen, isCreator),
+                              _buildGlassHeader(currentGroup, textColor, isSmallScreen, isCreator, isPlatformAdmin),
                               const SizedBox(height: 24),
                               
                               if (debts.isNotEmpty) ...[
@@ -203,9 +205,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                               ),
                               
                               const SizedBox(height: 32),
-                              _buildTransactionHistory(expenses, payments, textColor, isSmallScreen, currentGroup),
+                              _buildTransactionHistory(expenses, payments, textColor, isSmallScreen, currentGroup, hasAdminRights),
                               const SizedBox(height: 32),
-                              _buildMembersGrid(currentGroup, textColor, isSmallScreen, isCreator, debts),
+                              _buildMembersGrid(currentGroup, textColor, isSmallScreen, isCreator, hasAdminRights, debts),
                               const SizedBox(height: 100),
                             ],
                           ),
@@ -222,7 +224,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
-  Widget _buildGlassHeader(Group group, Color textColor, bool isSmall, bool isCreator) {
+  Widget _buildGlassHeader(Group group, Color textColor, bool isSmall, bool isCreator, bool isPlatformAdmin) {
     return GlassCard(
       isDarkMode: widget.isDarkMode,
       padding: const EdgeInsets.all(24),
@@ -258,6 +260,24 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                             const Icon(Icons.verified_user_rounded, color: Color(0xFFD4AF37), size: 14),
                             const SizedBox(width: 4),
                             Text("Group Admin", style: GoogleFonts.poppins(color: const Color(0xFFD4AF37), fontSize: 11, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                    ] else if (isPlatformAdmin) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.amber.withOpacity(0.4)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.admin_panel_settings_rounded, color: Colors.amber, size: 14),
+                            const SizedBox(width: 4),
+                            Text("Platform Admin", style: GoogleFonts.poppins(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
@@ -375,7 +395,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
-  Widget _buildTransactionHistory(List<Expense> expenses, List<Payment> payments, Color textColor, bool isSmall, Group group) {
+  Widget _buildTransactionHistory(List<Expense> expenses, List<Payment> payments, Color textColor, bool isSmall, Group group, bool hasAdminRights) {
     // Combine and sort by date
     List<dynamic> combined = [...expenses, ...payments];
     combined.sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -420,50 +440,61 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           
           return Container(
             margin: const EdgeInsets.only(bottom: 12),
-            child: GlassCard(
-              padding: const EdgeInsets.all(16),
-              isDarkMode: widget.isDarkMode,
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: isExpense ? (cat!['color'] as Color).withOpacity(0.1) : accentGreen.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(14),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: isExpense ? () => _showExpenseDetailsBottomSheet(item, group, hasAdminRights) : null,
+              child: GlassCard(
+                padding: const EdgeInsets.all(16),
+                isDarkMode: widget.isDarkMode,
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: isExpense ? (cat!['color'] as Color).withOpacity(0.1) : accentGreen.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        isExpense ? cat!['icon'] as IconData : Icons.handshake_rounded, 
+                        color: isExpense ? cat!['color'] as Color : accentGreen,
+                        size: 22
+                      ),
                     ),
-                    child: Icon(
-                      isExpense ? cat!['icon'] as IconData : Icons.handshake_rounded, 
-                      color: isExpense ? cat!['color'] as Color : accentGreen,
-                      size: 22
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(isExpense ? item.description : "Settlement", 
+                            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: textColor),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            isExpense 
+                              ? (item.multiplePayers != null && item.multiplePayers!.isNotEmpty
+                                  ? "Paid by ${item.multiplePayers!.entries.map((e) => "${widget.allUsers.firstWhere((u) => u.uid == e.key, orElse: () => model.User(uid: e.key, name: e.key.length > 5 ? "Member ${e.key.substring(e.key.length - 4)}" : "Member ${e.key}", email: "", createdAt: DateTime.now())).name}: ${e.value.toStringAsFixed(0)}").join(", ")}"
+                                  : "Paid by ${widget.allUsers.firstWhere((u) => u.uid == item.paidBy, orElse: () => model.User(uid: item.paidBy, name: item.paidBy.length > 5 ? "Member ${item.paidBy.substring(item.paidBy.length - 4)}" : "Member ${item.paidBy}", email: "", createdAt: DateTime.now())).name}")
+                              : "${widget.allUsers.firstWhere((u) => u.uid == item.from, orElse: () => model.User(uid: item.from, name: item.from.length > 5 ? "Member ${item.from.substring(item.from.length - 4)}" : "Member ${item.from}", email: "", createdAt: DateTime.now())).name} paid ${widget.allUsers.firstWhere((u) => u.uid == item.to, orElse: () => model.User(uid: item.to, name: item.to.length > 5 ? "Member ${item.to.substring(item.to.length - 4)}" : "Member ${item.to}", email: "", createdAt: DateTime.now())).name}",
+                            style: GoogleFonts.poppins(fontSize: 12, color: textColor.withOpacity(0.5)),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text(isExpense ? item.description : "Settlement", 
-                          style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: textColor),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        Text("PKR ${item.amount.toStringAsFixed(0)}", 
+                          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)
                         ),
-                        Text(
-                          isExpense 
-                            ? (item.multiplePayers != null && item.multiplePayers!.isNotEmpty
-                                ? "Paid by ${item.multiplePayers!.entries.map((e) => "${widget.allUsers.firstWhere((u) => u.uid == e.key, orElse: () => model.User(uid: e.key, name: e.key.length > 5 ? "Member ${e.key.substring(e.key.length - 4)}" : "Member ${e.key}", email: "", createdAt: DateTime.now())).name}: ${e.value.toStringAsFixed(0)}").join(", ")}"
-                                : "Paid by ${widget.allUsers.firstWhere((u) => u.uid == item.paidBy, orElse: () => model.User(uid: item.paidBy, name: item.paidBy.length > 5 ? "Member ${item.paidBy.substring(item.paidBy.length - 4)}" : "Member ${item.paidBy}", email: "", createdAt: DateTime.now())).name}")
-                            : "${widget.allUsers.firstWhere((u) => u.uid == item.from, orElse: () => model.User(uid: item.from, name: item.from.length > 5 ? "Member ${item.from.substring(item.from.length - 4)}" : "Member ${item.from}", email: "", createdAt: DateTime.now())).name} paid ${widget.allUsers.firstWhere((u) => u.uid == item.to, orElse: () => model.User(uid: item.to, name: item.to.length > 5 ? "Member ${item.to.substring(item.to.length - 4)}" : "Member ${item.to}", email: "", createdAt: DateTime.now())).name}",
-                          style: GoogleFonts.poppins(fontSize: 12, color: textColor.withOpacity(0.5)),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        if (isExpense)
+                          Text("Details", style: GoogleFonts.poppins(fontSize: 10, color: primaryBrandColor.withOpacity(0.8), fontWeight: FontWeight.bold)),
                       ],
                     ),
-                  ),
-                  Text("PKR ${item.amount.toStringAsFixed(0)}", 
-                    style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
@@ -472,7 +503,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
-  Widget _buildMembersGrid(Group group, Color textColor, bool isSmall, bool isCreator, List<Debt> debts) {
+  Widget _buildMembersGrid(Group group, Color textColor, bool isSmall, bool isCreator, bool hasAdminRights, List<Debt> debts) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -483,7 +514,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w600, color: textColor)
             ),
             TextButton.icon(
-              onPressed: _showAddMemberDialog,
+              onPressed: () => _showAddMemberDialog(group),
               icon: Icon(Icons.person_add_rounded, size: 18, color: primaryBrandColor),
               label: Text("Add Member", style: GoogleFonts.poppins(color: primaryBrandColor, fontWeight: FontWeight.bold, fontSize: 13)),
             ),
@@ -504,7 +535,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             // First item is Add Member shortcut button
             if (index == 0) {
               return GestureDetector(
-                onTap: _showAddMemberDialog,
+                onTap: () => _showAddMemberDialog(group),
                 child: Column(
                   children: [
                     Container(
@@ -535,13 +566,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             );
             final bool isMe = uid == widget.currentUserUid;
             final bool isGroupAdmin = uid == group.createdBy;
-            final String? addedBy = group.memberAddedBy[uid];
-            final bool iAddedThem = addedBy == widget.currentUserUid;
-            final bool canRemove = !isMe && (isCreator || iAddedThem);
+            final bool canRemove = !isMe && !isGroupAdmin && hasAdminRights;
 
             return GestureDetector(
               onTap: () {
-                _showMemberOptionsBottomSheet(user, isMe, canRemove, group, debts, isGroupAdmin, isCreator);
+                _showMemberOptionsBottomSheet(user, isMe, canRemove, group, debts, isGroupAdmin, hasAdminRights);
               },
               child: Column(
                 children: [
@@ -704,15 +733,45 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
-  void _showRemoveMemberDialog(String name, String uid) {
+  void _showRemoveMemberDialog(String name, String uid, List<Debt> debts) {
+    final bool hasUnsettledDebt = debts.any((d) => d.from == uid || d.to == uid);
     final textColor = widget.isDarkMode ? Colors.white : const Color(0xFF1A1A2E);
     showDialog(
       context: context,
       builder: (_) => GlassDialog(
         isDarkMode: widget.isDarkMode,
         title: "Remove Member",
-        content: Text("Are you sure you want to remove $name from this group?",
-            style: TextStyle(color: textColor)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Are you sure you want to remove $name from this group?",
+                style: TextStyle(color: textColor)),
+            if (hasUnsettledDebt) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.orangeAccent.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.orangeAccent.withOpacity(0.4)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded, color: Colors.orangeAccent, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "$name has unsettled balance in this group. Past transactions remain recorded, but they will be excluded from future expenses.",
+                        style: GoogleFonts.poppins(fontSize: 11, color: Colors.orangeAccent),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -737,12 +796,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       ),
     );
   }
-  void _showAddMemberDialog() {
+  void _showAddMemberDialog(Group group) {
     showDialog(
       context: context,
       builder: (_) => AddMemberDialog(
         onAddMember: (mUid) => widget.onAddMember(mUid, widget.currentUserUid),
         isDarkMode: widget.isDarkMode,
+        existingMembers: group.members,
       ),
     );
   }
@@ -772,7 +832,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     Group group, 
     List<Debt> debts, 
     bool isTargetAdmin, 
-    bool isCreator,
+    bool hasAdminRights,
   ) {
     final textColor = widget.isDarkMode ? Colors.white : const Color(0xFF1A1A2E);
 
@@ -805,18 +865,26 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
-                  color: (isTargetAdmin ? const Color(0xFFD4AF37) : const Color(0xFF27C46E)).withOpacity(0.15),
+                  color: (isTargetAdmin ? const Color(0xFFD4AF37) : (user.isAdmin || user.role.toLowerCase() == 'admin' ? Colors.amber : const Color(0xFF27C46E))).withOpacity(0.15),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: (isTargetAdmin ? const Color(0xFFD4AF37) : const Color(0xFF27C46E)).withOpacity(0.4)),
+                  border: Border.all(color: (isTargetAdmin ? const Color(0xFFD4AF37) : (user.isAdmin || user.role.toLowerCase() == 'admin' ? Colors.amber : const Color(0xFF27C46E))).withOpacity(0.4)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(isTargetAdmin ? Icons.shield_rounded : Icons.person_rounded, size: 14, color: isTargetAdmin ? const Color(0xFFD4AF37) : const Color(0xFF27C46E)),
+                    Icon(
+                      isTargetAdmin ? Icons.shield_rounded : (user.isAdmin || user.role.toLowerCase() == 'admin' ? Icons.admin_panel_settings_rounded : Icons.person_rounded),
+                      size: 14,
+                      color: isTargetAdmin ? const Color(0xFFD4AF37) : (user.isAdmin || user.role.toLowerCase() == 'admin' ? Colors.amber : const Color(0xFF27C46E)),
+                    ),
                     const SizedBox(width: 6),
                     Text(
-                      isTargetAdmin ? "Group Creator (Admin)" : "Group Member",
-                      style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.bold, color: isTargetAdmin ? const Color(0xFFD4AF37) : const Color(0xFF27C46E)),
+                      isTargetAdmin ? "Group Creator (Admin)" : (user.isAdmin || user.role.toLowerCase() == 'admin' ? "Platform Admin" : "Group Member"),
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isTargetAdmin ? const Color(0xFFD4AF37) : (user.isAdmin || user.role.toLowerCase() == 'admin' ? Colors.amber : const Color(0xFF27C46E)),
+                      ),
                     ),
                   ],
                 ),
@@ -850,7 +918,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 ),
                 const SizedBox(height: 8),
               ],
-              if (isMe && !isCreator)
+              if (isMe && !isTargetAdmin)
                 ListTile(
                   leading: Container(
                     padding: const EdgeInsets.all(8),
@@ -875,7 +943,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   subtitle: Text("Remove ${user.name} from this group", style: TextStyle(color: textColor.withOpacity(0.5), fontSize: 12)),
                   onTap: () {
                     Navigator.pop(ctx);
-                    _showRemoveMemberDialog(user.name, user.uid);
+                    _showRemoveMemberDialog(user.name, user.uid, debts);
                   },
                 ),
               const SizedBox(height: 12),
@@ -1072,6 +1140,175 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               }
             },
             child: const Text("Delete", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showExpenseDetailsBottomSheet(Expense expense, Group group, bool hasAdminRights) {
+    final textColor = widget.isDarkMode ? Colors.white : const Color(0xFF1A1A2E);
+    final payer = widget.allUsers.firstWhere(
+      (u) => u.uid == expense.paidBy,
+      orElse: () => model.User(uid: expense.paidBy, name: expense.paidBy.length > 5 ? "Member ${expense.paidBy.substring(expense.paidBy.length - 4)}" : "Member ${expense.paidBy}", email: "", createdAt: DateTime.now()),
+    );
+    final cat = categories.firstWhere((c) => c['name'] == expense.category, orElse: () => categories.last);
+    final bool canDelete = expense.paidBy == widget.currentUserUid || hasAdminRights;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: widget.isDarkMode ? const Color(0xFF1E2230) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(2))),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: (cat['color'] as Color).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(cat['icon'] as IconData, color: cat['color'] as Color, size: 28),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(expense.description, style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
+                        Text("${expense.category} • ${expense.timestamp.day}/${expense.timestamp.month}/${expense.timestamp.year}",
+                            style: GoogleFonts.poppins(fontSize: 12, color: textColor.withOpacity(0.5))),
+                      ],
+                    ),
+                  ),
+                  Text("PKR ${expense.amount.toStringAsFixed(0)}", style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF27C46E))),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: textColor.withOpacity(0.04),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Paid By", style: GoogleFonts.poppins(fontSize: 13, color: textColor.withOpacity(0.6))),
+                        Text(payer.name, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.bold, color: textColor)),
+                      ],
+                    ),
+                    const Divider(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Split Among", style: GoogleFonts.poppins(fontSize: 13, color: textColor.withOpacity(0.6))),
+                        Text("${expense.involvedMembers.length} participants", style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.bold, color: textColor)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: expense.involvedMembers.map((uid) {
+                        final u = widget.allUsers.firstWhere(
+                          (usr) => usr.uid == uid,
+                          orElse: () => model.User(uid: uid, name: uid.length > 5 ? "User ${uid.substring(uid.length - 4)}" : "User $uid", email: "", createdAt: DateTime.now()),
+                        );
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: primaryBrandColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(u.name.split(' ')[0], style: GoogleFonts.poppins(fontSize: 11, color: primaryBrandColor, fontWeight: FontWeight.w600)),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              if (canDelete)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent.withOpacity(0.15),
+                      foregroundColor: Colors.redAccent,
+                      elevation: 0,
+                      side: const BorderSide(color: Colors.redAccent),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                    label: Text("Delete Expense", style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _confirmDeleteExpense(expense);
+                    },
+                  ),
+                )
+              else
+                Center(
+                  child: Text(
+                    "Only the payer (${payer.name}) or group admin can delete this expense.",
+                    style: GoogleFonts.poppins(fontSize: 11, color: textColor.withOpacity(0.4)),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmDeleteExpense(Expense expense) {
+    final textColor = widget.isDarkMode ? Colors.white : const Color(0xFF1A1A2E);
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: widget.isDarkMode ? const Color(0xFF1E2230) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text("Delete Expense?", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.redAccent)),
+        content: Text("Are you sure you want to permanently delete \"${expense.description}\"? All debts and balances will be recalculated.",
+            style: GoogleFonts.poppins(fontSize: 13, color: textColor)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text("Cancel")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            onPressed: () async {
+              final db = Provider.of<DatabaseService>(context, listen: false);
+              await db.deleteExpense(expense.id!);
+              final currentUser = widget.allUsers.firstWhere((u) => u.uid == widget.currentUserUid, orElse: () => model.User(uid: widget.currentUserUid, name: "User", email: "", createdAt: DateTime.now()));
+              await UserActivityService.logExpenseDeleted(widget.currentUserUid, currentUser.name, expense.description, expense.amount);
+              if (mounted) {
+                Navigator.pop(dialogCtx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Expense \"${expense.description}\" deleted successfully"), backgroundColor: Colors.redAccent),
+                );
+              }
+            },
+            child: const Text("Delete", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),

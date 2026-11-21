@@ -8,7 +8,13 @@ import '../models/user.dart';
 class AddMemberDialog extends StatefulWidget {
   final Function(String) onAddMember;
   final bool isDarkMode;
-  const AddMemberDialog({super.key, required this.onAddMember, required this.isDarkMode});
+  final List<String> existingMembers;
+  const AddMemberDialog({
+    super.key,
+    required this.onAddMember,
+    required this.isDarkMode,
+    this.existingMembers = const [],
+  });
 
   @override
   State<AddMemberDialog> createState() => _AddMemberDialogState();
@@ -39,9 +45,15 @@ class _AddMemberDialogState extends State<AddMemberDialog> {
       return;
     }
 
+    if (widget.existingMembers.contains(user.uid)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("This user is already a member of this group"), backgroundColor: Colors.orangeAccent));
+      return;
+    }
+
     widget.onAddMember(user.uid);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Sucessfully added ${user.name}"), backgroundColor: const Color(0xFF27C46E)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Successfully added ${user.name}"), backgroundColor: const Color(0xFF27C46E)));
     Navigator.pop(context);
   }
 
@@ -100,7 +112,9 @@ class _AddMemberDialogState extends State<AddMemberDialog> {
                 stream: db.streamUsers(),
                 builder: (context, snap) {
                   if (!snap.hasData) return const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()));
-                  final users = snap.data!.where((u) => !u.isAdmin && u.role.toLowerCase() != 'admin').toList();
+                  final users = snap.data!
+                      .where((u) => !u.isAdmin && u.role.toLowerCase() != 'admin' && !widget.existingMembers.contains(u.uid))
+                      .toList();
                   if (users.isEmpty) {
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8),

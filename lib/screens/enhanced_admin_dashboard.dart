@@ -982,6 +982,7 @@ class _EnhancedAdminDashboardState extends State<EnhancedAdminDashboard> with Si
                           currentUserUid: widget.currentUser.uid,
                           isDarkMode: isDark,
                           onAddMember: (mUid, adderUid) async {
+                            if (group.members.contains(mUid)) return;
                             final updatedMembers = [...group.members, mUid];
                             final updatedAddedBy = Map<String, String>.from(group.memberAddedBy);
                             updatedAddedBy[mUid] = adderUid;

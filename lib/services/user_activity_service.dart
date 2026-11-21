@@ -151,6 +151,22 @@ class UserActivityService {
     );
   }
 
+  // Log expense deletion
+  static Future<void> logExpenseDeleted(
+    String userId,
+    String userName,
+    String expenseDescription,
+    double amount,
+  ) async {
+    await logActivity(
+      userId: userId,
+      userName: userName,
+      action: 'expense_deleted',
+      details: 'Deleted expense "$expenseDescription"',
+      metadata: {'amount': amount, 'description': expenseDescription},
+    );
+  }
+
   // Log group creation
   static Future<void> logGroupCreated(
     String userId,
