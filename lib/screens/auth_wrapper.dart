@@ -7,6 +7,7 @@ import 'auth_screen.dart';
 import 'role_selection_screen.dart';
 import 'home_navigation.dart';
 import 'enhanced_admin_dashboard.dart';
+import 'account_suspended_screen.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -95,7 +96,14 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
               );
             }
 
-            if (appUser.role == 'admin') {
+            final bool isPlatformAdmin = appUser.role.toLowerCase() == 'admin' || appUser.isAdmin;
+
+            // If account is suspended by Admin and not platform admin, block access
+            if (!appUser.isActive && !isPlatformAdmin) {
+              return const AccountSuspendedScreen();
+            }
+
+            if (isPlatformAdmin) {
               return EnhancedAdminDashboard(currentUser: appUser);
             } else {
               return HomeNavigation(user: appUser);

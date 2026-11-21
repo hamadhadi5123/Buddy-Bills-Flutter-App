@@ -149,6 +149,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                             icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
                             tooltip: "Delete Group",
                             onPressed: () => _showDeleteGroupDialog(currentGroup),
+                          )
+                        else
+                          IconButton(
+                            icon: const Icon(Icons.exit_to_app_rounded, color: Colors.orangeAccent),
+                            tooltip: "Leave Group",
+                            onPressed: () => _showLeaveGroupDialog(currentGroup, debts),
                           ),
                         const SizedBox(width: 8),
                       ],
@@ -199,7 +205,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                               const SizedBox(height: 32),
                               _buildTransactionHistory(expenses, payments, textColor, isSmallScreen, currentGroup),
                               const SizedBox(height: 32),
-                              _buildMembersGrid(currentGroup, textColor, isSmallScreen, isCreator),
+                              _buildMembersGrid(currentGroup, textColor, isSmallScreen, isCreator, debts),
                               const SizedBox(height: 100),
                             ],
                           ),
@@ -466,7 +472,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
-  Widget _buildMembersGrid(Group group, Color textColor, bool isSmall, bool isCreator) {
+  Widget _buildMembersGrid(Group group, Color textColor, bool isSmall, bool isCreator, List<Debt> debts) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -535,7 +541,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
             return GestureDetector(
               onTap: () {
-                _showMemberOptionsBottomSheet(user, isMe, canRemove);
+                _showMemberOptionsBottomSheet(user, isMe, canRemove, group, debts, isGroupAdmin, isCreator);
               },
               child: Column(
                 children: [
@@ -759,7 +765,15 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     }
   }
 
-  void _showMemberOptionsBottomSheet(model.User user, bool isMe, bool canRemove) {
+  void _showMemberOptionsBottomSheet(
+    model.User user, 
+    bool isMe, 
+    bool canRemove, 
+    Group group, 
+    List<Debt> debts, 
+    bool isTargetAdmin, 
+    bool isCreator,
+  ) {
     final textColor = widget.isDarkMode ? Colors.white : const Color(0xFF1A1A2E);
 
     showModalBottomSheet(
@@ -787,6 +801,26 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               Text(user.name, style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
               if (user.email.isNotEmpty)
                 Text(user.email, style: GoogleFonts.poppins(fontSize: 13, color: textColor.withOpacity(0.5))),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: (isTargetAdmin ? const Color(0xFFD4AF37) : const Color(0xFF27C46E)).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: (isTargetAdmin ? const Color(0xFFD4AF37) : const Color(0xFF27C46E)).withOpacity(0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(isTargetAdmin ? Icons.shield_rounded : Icons.person_rounded, size: 14, color: isTargetAdmin ? const Color(0xFFD4AF37) : const Color(0xFF27C46E)),
+                    const SizedBox(width: 6),
+                    Text(
+                      isTargetAdmin ? "Group Creator (Admin)" : "Group Member",
+                      style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.bold, color: isTargetAdmin ? const Color(0xFFD4AF37) : const Color(0xFF27C46E)),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 24),
               if (!isMe) ...[
                 ListTile(
@@ -816,6 +850,20 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 ),
                 const SizedBox(height: 8),
               ],
+              if (isMe && !isCreator)
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: Colors.orangeAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.exit_to_app_rounded, color: Colors.orangeAccent),
+                  ),
+                  title: Text("Leave Group", style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Colors.orangeAccent)),
+                  subtitle: Text("Exit this group voluntarily", style: TextStyle(color: textColor.withOpacity(0.5), fontSize: 12)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showLeaveGroupDialog(group, debts);
+                  },
+                ),
               if (canRemove)
                 ListTile(
                   leading: Container(
@@ -834,6 +882,82 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showLeaveGroupDialog(Group group, List<Debt> debts) {
+    final myDebts = debts.where((d) => d.from == widget.currentUserUid).toList();
+    final double totalOwed = myDebts.fold(0.0, (sum, d) => sum + d.amount);
+    final hasPendingDues = totalOwed > 0;
+    final textColor = widget.isDarkMode ? Colors.white : const Color(0xFF1A1A2E);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: widget.isDarkMode ? const Color(0xFF1E2230) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            const Icon(Icons.exit_to_app_rounded, color: Colors.orangeAccent),
+            const SizedBox(width: 8),
+            Text("Leave Group", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: textColor)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Are you sure you want to leave '${group.name}'?", style: GoogleFonts.poppins(color: textColor.withOpacity(0.8), fontSize: 14)),
+            if (hasPendingDues) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "You currently owe PKR ${totalOwed.toStringAsFixed(2)} in this group. It is recommended to settle up before leaving.",
+                        style: GoogleFonts.poppins(fontSize: 12, color: Colors.redAccent, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text("Cancel", style: TextStyle(color: textColor.withOpacity(0.6))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              widget.onRemoveMember?.call(widget.currentUserUid);
+              await UserActivityService.logGroupJoined(widget.currentUserUid, "User", "${group.name} (Left)");
+              if (mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text("You have left '${group.name}'", style: GoogleFonts.poppins()),
+                    backgroundColor: Colors.orangeAccent,
+                  ),
+                );
+              }
+            },
+            child: const Text("Leave", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }

@@ -15,6 +15,8 @@ import 'create_group_screen.dart';
 import '../services/database_service.dart';
 import '../widgets/premium_background.dart';
 import 'group_detail_screen.dart';
+import 'admin_announcements_screen.dart';
+import 'admin_support_management_screen.dart';
 
 class EnhancedAdminDashboard extends StatefulWidget {
   final User currentUser;
@@ -390,6 +392,25 @@ class _EnhancedAdminDashboardState extends State<EnhancedAdminDashboard> with Si
         elevation: 0,
         centerTitle: false,
         iconTheme: IconThemeData(color: textColor),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.campaign_rounded, color: primaryColor),
+            tooltip: "Broadcast Notices",
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => AdminAnnouncementsScreen(currentUser: widget.currentUser)),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.support_agent_rounded, color: Color(0xFF27C46E)),
+            tooltip: "Support Tickets",
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => AdminSupportManagementScreen(currentUser: widget.currentUser)),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
@@ -549,6 +570,54 @@ class _EnhancedAdminDashboardState extends State<EnhancedAdminDashboard> with Si
                      Expanded(child: _buildAdminStatCard("Active Groups", "${widget.currentUser.groupsJoined}", Icons.groups_rounded, primaryColor, textColor, isDark)),
                    ],
                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Admin Command Services
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1C1C1C).withOpacity(0.6) : Colors.white.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: primaryColor.withOpacity(0.2)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Command Services", style: GoogleFonts.cinzel(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
+                const SizedBox(height: 14),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: primaryColor.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
+                    child: Icon(Icons.campaign_rounded, color: primaryColor, size: 22),
+                  ),
+                  title: Text("Broadcast Announcements", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15, color: textColor)),
+                  subtitle: Text("Publish urgent notices & updates", style: GoogleFonts.manrope(fontSize: 12, color: textColor.withOpacity(0.6))),
+                  trailing: Icon(Icons.chevron_right_rounded, color: primaryColor),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => AdminAnnouncementsScreen(currentUser: widget.currentUser)),
+                  ),
+                ),
+                Divider(color: textColor.withOpacity(0.08), height: 20),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: const Color(0xFF27C46E).withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.support_agent_rounded, color: Color(0xFF27C46E), size: 22),
+                  ),
+                  title: Text("Support Console", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15, color: textColor)),
+                  subtitle: Text("Resolve user tickets & inquiries", style: GoogleFonts.manrope(fontSize: 12, color: textColor.withOpacity(0.6))),
+                  trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF27C46E)),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => AdminSupportManagementScreen(currentUser: widget.currentUser)),
+                  ),
+                ),
               ],
             ),
           ),

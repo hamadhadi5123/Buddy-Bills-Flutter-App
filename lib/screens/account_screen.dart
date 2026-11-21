@@ -56,7 +56,7 @@ class _AccountScreenState extends State<AccountScreen> {
             _buildStatsRow(textColor, darkMode),
             const SizedBox(height: 32),
             _buildSectionHeader("Management", textColor),
-            if (widget.user.role == 'admin') ...[
+            if (widget.user.role.toLowerCase() == 'admin' || widget.user.isAdmin) ...[
               _buildSettingItem(
                 icon: Icons.admin_panel_settings_rounded,
                 title: "Admin Dashboard",
