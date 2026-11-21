@@ -447,71 +447,7 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          if (EmailService.emailJsServiceId.isEmpty && EmailService.brevoApiKey.isEmpty) ...[
-            TextButton.icon(
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    backgroundColor: const Color(0xFF1E2230),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    title: Text("Development OTP Code", style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text("For local testing, your 6-digit OTP code is:", style: GoogleFonts.poppins(color: Colors.white70, fontSize: 13)),
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: primaryBrandColor.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: primaryBrandColor.withOpacity(0.4)),
-                          ),
-                          child: Text(
-                            _currentOtp ?? "------",
-                            style: GoogleFonts.poppins(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 6,
-                              color: primaryBrandColor,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          "To send this code directly to your real Gmail inbox, add your free EmailJS or Brevo key in lib/services/email_service.dart.",
-                          style: GoogleFonts.poppins(color: Colors.white54, fontSize: 11),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                    actions: [
-                      ElevatedButton(
-                        onPressed: () {
-                          if (_currentOtp != null) {
-                            otpController.text = _currentOtp!;
-                          }
-                          Navigator.pop(context);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryBrandColor,
-                          foregroundColor: const Color(0xFF0F172A),
-                        ),
-                        child: Text("Auto-Fill & Close", style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
-                      ),
-                    ],
-                  ),
-                );
-              },
-              icon: Icon(Icons.help_outline_rounded, size: 16, color: primaryBrandColor.withOpacity(0.8)),
-              label: Text(
-                "Didn't receive email? Tap to view code (Dev Mode)",
-                style: GoogleFonts.poppins(fontSize: 12, color: primaryBrandColor.withOpacity(0.9), fontWeight: FontWeight.w500),
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
+
 
           // Back to edit & Timer / Resend Row
           Row(
