@@ -211,11 +211,8 @@ class _EnhancedAdminDashboardState extends State<EnhancedAdminDashboard> with Si
       );
 
       final Map<String, dynamic> userData = newUser.toMap();
-    if (passwordCtrl.text.isNotEmpty) {
-      userData['initialPassword'] = passwordCtrl.text.trim();
-    }
 
-    await usersCollection.doc(uid).set(userData, SetOptions(merge: true));
+      await usersCollection.doc(uid).set(userData, SetOptions(merge: true));
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

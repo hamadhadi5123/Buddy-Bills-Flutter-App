@@ -27,9 +27,8 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-  // Predefined master App Admin credentials
+  // Predefined master App Admin email
   static const String predefinedAdminEmail = "admin@buddybills.com";
-  static const String predefinedAdminPassword = "admin123456";
 
   bool isLogin = true;
   bool isOtpSent = false;
@@ -543,10 +542,9 @@ class _AuthScreenState extends State<AuthScreen> {
           password: password,
         );
       } on fb.FirebaseAuthException catch (e) {
-        // Bootstrap predefined admin if logging in for the first time
-        if ((e.code == 'user-not-found' || e.code == 'invalid-credential') &&
-            email.toLowerCase() == predefinedAdminEmail.toLowerCase() &&
-            password == predefinedAdminPassword) {
+        // If the predefined admin doesn't exist yet on fresh Firebase setup, bootstrap safely
+        if (e.code == 'user-not-found' &&
+            email.toLowerCase() == predefinedAdminEmail.toLowerCase()) {
           userCredential = await fb.FirebaseAuth.instance.createUserWithEmailAndPassword(
             email: email,
             password: password,

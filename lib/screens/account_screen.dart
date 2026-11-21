@@ -98,6 +98,25 @@ class _AccountScreenState extends State<AccountScreen> {
               darkMode: darkMode,
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => UserSupportScreen(currentUser: widget.user))),
             ),
+            _buildSettingItem(
+              icon: Icons.lock_reset_rounded,
+              title: "Reset Password",
+              subtitle: "Send secure reset link to email",
+              textColor: textColor,
+              darkMode: darkMode,
+              onTap: () async {
+                if (widget.user.email.isEmpty) {
+                  _infoSnack("No email associated with account");
+                  return;
+                }
+                try {
+                  await fb.FirebaseAuth.instance.sendPasswordResetEmail(email: widget.user.email);
+                  _infoSnack("Password reset email sent to ${widget.user.email}");
+                } catch (e) {
+                  _infoSnack("Reset failed: ${e.toString()}");
+                }
+              },
+            ),
             const SizedBox(height: 24),
             _buildSectionHeader("Preferences", textColor),
             _buildSettingItem(

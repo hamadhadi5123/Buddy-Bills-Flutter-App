@@ -11,37 +11,94 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // 1. Users collection: Authenticated users can read/write their own profile
-    match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if isOwner(userId);
-    }
-
-    // 2. Groups collection: Members can read and update
-    match /groups/{groupId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (
-        request.auth.uid in resource.data.memberIds
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email == 'admin@buddybills.com' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
       );
     }
 
-    // 3. Expenses collection: Group members can read and create expenses
+    // 1. Users collection: Authenticated users can read profiles; owners or Admin can write
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isOwner(userId) || isAdmin();
+    }
+
+    // 2. Groups collection: Members can read and update; Creator or Admin can delete
+    match /groups/{groupId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        request.auth.uid in resource.data.members || isAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        request.auth.uid == resource.data.createdBy || isAdmin()
+      );
+
+      // Group Chat Messages: Group members can read and send
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && (
+          request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members || isAdmin()
+        );
+        allow create: if isAuthenticated() && (
+          request.resource.data.senderId == request.auth.uid
+        );
+        allow update, delete: if isAuthenticated() && (
+          request.auth.uid == resource.data.senderId || isAdmin()
+        );
+      }
+    }
+
+    // 3. Expenses collection: Authenticated members can read/create; Payer or Admin can update/delete
     match /expenses/{expenseId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update, delete: if isAuthenticated() && (
-        request.auth.uid == resource.data.paidByUserId
+        request.auth.uid == resource.data.paidBy || isAdmin()
       );
     }
 
-    // 4. Activities collection: Read all user-involved activities
-    match /activities/{activityId} {
+    // 4. Payments / Settlements collection
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (
+        request.auth.uid == resource.data.from ||
+        request.auth.uid == resource.data.to ||
+        isAdmin()
+      );
+    }
+
+    // 5. Private 1-on-1 Chat Messages & Conversations
+    match /private_chats/{chatId}/messages/{messageId} {
       allow read, write: if isAuthenticated();
     }
 
-    // 5. Settlements collection: Authenticated settlements
-    match /settlements/{settlementId} {
+    match /conversations/{convId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 6. Announcements: Only Platform Admin can create/modify; all users can read
+    match /announcements/{announcementId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // 7. Support Requests: User can access own tickets; Admin can access all
+    match /support_requests/{requestId} {
+      allow create: if isAuthenticated();
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || isAdmin()
+      );
+      allow update, delete: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || isAdmin()
+      );
+    }
+
+    // 8. User Activity Audit Trail
+    match /user_activities/{activityId} {
       allow read, write: if isAuthenticated();
     }
   }
