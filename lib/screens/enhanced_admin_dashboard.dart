@@ -251,6 +251,68 @@ class _EnhancedAdminDashboardState extends State<EnhancedAdminDashboard> with Si
     }
   }
 
+  Future<void> _deleteAllNonAdminUsers() async {
+    try {
+      final snapshot = await usersCollection.get();
+      final batch = FirebaseFirestore.instance.batch();
+      int deletedCount = 0;
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final email = (data['email'] ?? '').toString().toLowerCase();
+        final isAdmin = data['isAdmin'] == true || data['role'] == 'admin' || email == 'admin@buddybills.com';
+        if (!isAdmin && doc.id != widget.currentUser.uid) {
+          batch.delete(doc.reference);
+          deletedCount++;
+        }
+      }
+      await batch.commit();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Successfully deleted $deletedCount registered users!"),
+            backgroundColor: const Color(0xFF1E2230),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error deleting users: $e"), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+  void _confirmDeleteAllUsers() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text("Delete All Users", style: GoogleFonts.cinzel(fontWeight: FontWeight.bold, color: Colors.redAccent)),
+        content: Text(
+          "Are you sure you want to permanently delete all registered users? Only the Administrator account will be preserved.",
+          style: GoogleFonts.manrope(color: isDark ? Colors.white70 : Colors.black87, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _deleteAllNonAdminUsers();
+            },
+            child: const Text("Delete All", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showUserActivities(User user) {
       // Dynamic styling
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -741,10 +803,46 @@ class _EnhancedAdminDashboardState extends State<EnhancedAdminDashboard> with Si
 
               if (docs.isEmpty) return Center(child: Text("No records match your query", style: TextStyle(color: textColor.withOpacity(0.6))));
 
-              return ListView.builder(
-                itemCount: docs.length,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemBuilder: (context, index) {
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Registered Users (${docs.length})",
+                          style: GoogleFonts.outfit(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                            color: textColor,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => _confirmDeleteAllUsers(),
+                          icon: const Icon(Icons.delete_forever_rounded, color: Colors.redAccent, size: 18),
+                          label: Text(
+                            "Delete All Users",
+                            style: GoogleFonts.manrope(
+                              color: Colors.redAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          style: TextButton.styleFrom(
+                            backgroundColor: Colors.redAccent.withOpacity(0.1),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: docs.length,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemBuilder: (context, index) {
                   final data = docs[index].data() as Map<String, dynamic>;
                   final user = User.fromMap(data);
 
@@ -827,13 +925,16 @@ class _EnhancedAdminDashboardState extends State<EnhancedAdminDashboard> with Si
                     ),
                   );
                 },
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
+              ),
+            ),
+          ],
+        );
+      },
+    ),
+  ),
+],
+);
+}
 
   Widget _buildGroupsTab() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
