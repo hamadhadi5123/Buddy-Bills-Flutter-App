@@ -259,7 +259,7 @@ class _EnhancedAdminDashboardState extends State<EnhancedAdminDashboard> with Si
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final email = (data['email'] ?? '').toString().toLowerCase();
-        final isAdmin = data['isAdmin'] == true || data['role'] == 'admin' || email == 'admin@buddybills.com';
+        final isAdmin = data['isAdmin'] == true || data['role'] == 'admin' || email == 'hamad@gmail.com' || email == 'admin@buddybills.com';
         if (!isAdmin && doc.id != widget.currentUser.uid) {
           batch.delete(doc.reference);
           deletedCount++;

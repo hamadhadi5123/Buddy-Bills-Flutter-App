@@ -29,8 +29,9 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-  // Predefined master App Admin email
-  static const String predefinedAdminEmail = "admin@buddybills.com";
+  // Predefined master App Owner / Admin credentials
+  static const String predefinedAdminEmail = "hamad@gmail.com";
+  static const String predefinedAdminPassword = "Hamad@123";
 
   bool isLogin = true;
   bool isOtpSent = false;
@@ -268,7 +269,40 @@ class _AuthScreenState extends State<AuthScreen> {
             onToggleVisibility: () => setState(() => passwordVisible = !passwordVisible),
             hint: "•••••••• (min 8 chars)",
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
+          if (isLogin) ...[
+            Align(
+              alignment: Alignment.centerRight,
+              child: InkWell(
+                onTap: () {
+                  setState(() {
+                    emailController.text = predefinedAdminEmail;
+                    passwordController.text = predefinedAdminPassword;
+                  });
+                },
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.shield_rounded, size: 13, color: primaryBrandColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        "Fill Owner Credentials",
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: primaryBrandColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
         ],
 
         // Confirm Password field for Signup
@@ -706,26 +740,30 @@ class _AuthScreenState extends State<AuthScreen> {
         );
       } on fb.FirebaseAuthException catch (e) {
         // If the predefined admin doesn't exist yet on fresh Firebase setup, bootstrap safely
-        if (e.code == 'user-not-found' &&
+        if ((e.code == 'user-not-found' || e.code == 'invalid-credential') &&
             email.toLowerCase() == predefinedAdminEmail.toLowerCase()) {
-          userCredential = await fb.FirebaseAuth.instance.createUserWithEmailAndPassword(
-            email: email,
-            password: password,
-          );
-          
-          final adminUser = User(
-            uid: userCredential.user!.uid,
-            name: "Platform Administrator",
-            email: email,
-            isAdmin: true,
-            isActive: true,
-            role: "admin",
-            createdAt: DateTime.now(),
-          );
-          
-          await FirebaseFirestore.instance.collection('users').doc(adminUser.uid).set(adminUser.toMap());
-          await _navigate(adminUser);
-          return;
+          try {
+            userCredential = await fb.FirebaseAuth.instance.createUserWithEmailAndPassword(
+              email: email,
+              password: password,
+            );
+            
+            final adminUser = User(
+              uid: userCredential.user!.uid,
+              name: "Hamad (Owner & Admin)",
+              email: email,
+              isAdmin: true,
+              isActive: true,
+              role: "admin",
+              createdAt: DateTime.now(),
+            );
+            
+            await FirebaseFirestore.instance.collection('users').doc(adminUser.uid).set(adminUser.toMap());
+            await _navigate(adminUser);
+            return;
+          } catch (_) {
+            rethrow;
+          }
         } else {
           rethrow;
         }
@@ -741,12 +779,14 @@ class _AuthScreenState extends State<AuthScreen> {
 
         // Predefined Admin guarantee
         if (email.toLowerCase() == predefinedAdminEmail.toLowerCase()) {
-          if (!appUser.isAdmin || appUser.role != 'admin') {
+          if (!appUser.isAdmin || appUser.role != 'admin' || appUser.name != "Hamad (Owner & Admin)") {
             appUser.isAdmin = true;
             appUser.role = 'admin';
+            appUser.name = "Hamad (Owner & Admin)";
             await FirebaseFirestore.instance.collection('users').doc(uid).update({
               'isAdmin': true,
               'role': 'admin',
+              'name': "Hamad (Owner & Admin)",
             });
           }
         }
@@ -754,7 +794,7 @@ class _AuthScreenState extends State<AuthScreen> {
         final isPredefinedAdmin = email.toLowerCase() == predefinedAdminEmail.toLowerCase();
         appUser = User(
           uid: uid,
-          name: isPredefinedAdmin ? "Platform Administrator" : (userCredential.user!.displayName ?? "User"),
+          name: isPredefinedAdmin ? "Hamad (Owner & Admin)" : (userCredential.user!.displayName ?? "User"),
           email: email,
           isAdmin: isPredefinedAdmin,
           isActive: true,

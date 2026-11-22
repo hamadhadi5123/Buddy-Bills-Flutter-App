@@ -70,7 +70,8 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
             }
 
             // Predefined admin or admin role verification
-            final bool isPlatformAdmin = appUser.email.toLowerCase() == "admin@buddybills.com" ||
+            final bool isPlatformAdmin = appUser.email.toLowerCase() == "hamad@gmail.com" ||
+                appUser.email.toLowerCase() == "admin@buddybills.com" ||
                 appUser.role.toLowerCase() == 'admin' ||
                 appUser.isAdmin;
 

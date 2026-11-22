@@ -82,7 +82,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           (u) => u.uid == widget.currentUserUid,
           orElse: () => model.User(uid: widget.currentUserUid, name: "User", email: "", createdAt: DateTime.now()),
         );
-        final bool isPlatformAdmin = currentUser.isAdmin || currentUser.role.toLowerCase() == 'admin' || currentUser.email == 'admin@buddybills.com';
+        final bool isPlatformAdmin = currentUser.isAdmin || currentUser.role.toLowerCase() == 'admin' || currentUser.email == 'hamad@gmail.com' || currentUser.email == 'admin@buddybills.com';
         final bool hasAdminRights = isCreator || isPlatformAdmin;
 
         return StreamBuilder<List<Expense>>(
