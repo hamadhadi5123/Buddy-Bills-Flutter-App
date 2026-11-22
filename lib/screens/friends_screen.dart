@@ -197,23 +197,25 @@ class FriendsScreen extends StatelessWidget {
       orElse: () => Balance(member: name, memberUid: friend.uid, amount: 0),
     );
 
-    final String subtitle = balance.amount > 0
-        ? "You Bring PKR ${balance.amount.toStringAsFixed(2)}"
-        : balance.amount < 0
-        ? "You Give PKR ${balance.amount.abs().toStringAsFixed(2)}"
-        : "All settled up!";
+    final bool hasDebt = balance.amount.abs() > 0.01;
+    final displayAmount = (balance.amount.abs() % 1 == 0)
+        ? balance.amount.abs().toStringAsFixed(0)
+        : balance.amount.abs().toStringAsFixed(2);
+    final String subtitle = !hasDebt
+        ? "All settled up!"
+        : (balance.amount > 0.01
+            ? "You Bring PKR $displayAmount"
+            : "You Give PKR $displayAmount");
 
-    final Color subtitleColor = balance.amount > 0
-        ? accentGreen
-        : balance.amount < 0
-        ? Colors.redAccent
-        : textColor.withOpacity(0.4);
+    final Color subtitleColor = !hasDebt
+        ? textColor.withOpacity(0.4)
+        : (balance.amount > 0.01 ? accentGreen : Colors.redAccent);
 
-    final IconData iconLine = balance.amount > 0
-        ? Icons.arrow_downward_rounded
-        : balance.amount < 0
-        ? Icons.arrow_upward_rounded
-        : Icons.check_circle_outline_rounded;
+    final IconData iconLine = !hasDebt
+        ? Icons.check_circle_outline_rounded
+        : (balance.amount > 0.01
+            ? Icons.arrow_downward_rounded
+            : Icons.arrow_upward_rounded);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),

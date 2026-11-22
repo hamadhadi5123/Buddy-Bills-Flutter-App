@@ -12,6 +12,7 @@ import '../models/group.dart';
 import '../models/expense.dart';
 import '../models/payment.dart';
 import '../models/balance.dart';
+import '../utils/debt_calculator.dart';
 import './auth_wrapper.dart';
 import './groups_screen.dart';
 import './friends_screen.dart';
@@ -49,8 +50,13 @@ class _HomeNavigationState extends State<HomeNavigation> {
     }
   }
 
-  // Helper to calculate total balances from expenses and payments
-  List<Balance> _calculateTotalBalances(List<Expense> expenses, List<Payment> payments, List<model.User> allUsers) {
+  // Helper to calculate total balances from expenses and payments using DebtCalculator (synchronized with groups)
+  List<Balance> _calculateTotalBalances(
+    List<Expense> expenses, 
+    List<Payment> payments, 
+    List<model.User> allUsers,
+    List<Group> groups,
+  ) {
     final Map<String, double> balanceMap = {};
     for (var u in allUsers) {
       if (u.uid != widget.user.uid) {
@@ -58,74 +64,57 @@ class _HomeNavigationState extends State<HomeNavigation> {
       }
     }
 
-    // Process expenses
-    for (var exp in expenses) {
-      // 1. Calculate WHO PAID (Credit)
-      final Map<String, double> payers = {};
-      if (exp.multiplePayers != null && exp.multiplePayers!.isNotEmpty) {
-        payers.addAll(exp.multiplePayers!);
-      } else {
-        payers[exp.paidBy] = exp.amount;
+    final Set<String> processedExpenseIds = {};
+    final Set<String> processedPaymentIds = {};
+
+    // 1. Calculate P2P debts for each group using DebtCalculator (exact same as Group Detail Screen)
+    for (var group in groups) {
+      if (group.id == null) continue;
+      final groupExpenses = expenses.where((e) => e.groupId == group.id).toList();
+      final groupPayments = payments.where((p) => p.groupId == group.id).toList();
+
+      for (var e in groupExpenses) {
+        if (e.id != null) processedExpenseIds.add(e.id!);
+      }
+      for (var p in groupPayments) {
+        if (p.id != null) processedPaymentIds.add(p.id!);
       }
 
-      // 2. Calculate WHO OWES (Debt)
-      final Map<String, double> owes = {};
-      if (exp.splitType == 'equally') {
-        final share = exp.amount / (exp.involvedMembers.isEmpty ? 1 : exp.involvedMembers.length);
-        for (var m in exp.involvedMembers) {
-          owes[m] = share;
-        }
-      } else if (exp.splitType == 'unequally' && exp.unequalAmounts != null) {
-        owes.addAll(exp.unequalAmounts!);
-      }
+      final debts = DebtCalculator.calculateDebts(groupExpenses, groupPayments, group.members);
 
-      // 3. Update Balance relative to Current User
-      // If I paid: Others owe me (+)
-      // If Others paid: I owe them (-)
-      
-      final myPaid = payers[widget.user.uid] ?? 0.0;
-      final myOwe = owes[widget.user.uid] ?? 0.0;
-
-      // Distribution of my credit to others
-      if (myPaid > 0) {
-        // I contributed. Others who owe money for this expense owe me their portion.
-        // Actually, simpler: my net contribution for this expense relative to each other person.
-        // This is tricky for multi-payer. 
-        // Let's use the DebtCalculator logic approach: simplify to net balance.
-      }
-
-      // Actually, for individual balances:
-      // A's balance to B = (A's contribution to B's share) - (B's contribution to A's share)
-      // This is exactly what DebtCalculator does.
-      
-      // Let's use a simpler net balance approach:
-      // For each user 'U', their balance relative to me is:
-      // (My Contribution to U's Debt) - (U's Contribution to My Debt)
-      
-      for (var u in balanceMap.keys) {
-        final uPaid = payers[u] ?? 0.0;
-        final uOwe = owes[u] ?? 0.0;
-        
-        // This expense total
-        if (exp.amount > 0) {
-           // My portion of U's debt: (MyPaid / TotalPaid) * U'sOwe
-           final myPortionOfUOwe = (myPaid / exp.amount) * uOwe;
-           final uPortionOfMyOweCorrect = (uPaid / exp.amount) * myOwe;
-           
-           balanceMap[u] = balanceMap[u]! + myPortionOfUOwe - uPortionOfMyOweCorrect;
+      for (var debt in debts) {
+        if (debt.from == widget.user.uid) {
+          // Current user owes debt.to
+          balanceMap[debt.to] = (balanceMap[debt.to] ?? 0.0) - debt.amount;
+        } else if (debt.to == widget.user.uid) {
+          // debt.from owes current user
+          balanceMap[debt.from] = (balanceMap[debt.from] ?? 0.0) + debt.amount;
         }
       }
     }
 
-    // Process payments (settlements)
-    for (var pay in payments) {
-      if (pay.from == widget.user.uid) {
-        if (balanceMap.containsKey(pay.to)) {
-          balanceMap[pay.to] = balanceMap[pay.to]! + pay.amount;
-        }
-      } else if (pay.to == widget.user.uid) {
-        if (balanceMap.containsKey(pay.from)) {
-          balanceMap[pay.from] = balanceMap[pay.from]! - pay.amount;
+    // 2. Handle non-group expenses & payments (if any)
+    final nonGroupExpenses = expenses.where((e) => e.groupId == null || (e.id != null && !processedExpenseIds.contains(e.id))).toList();
+    final nonGroupPayments = payments.where((p) => p.groupId == null || (p.id != null && !processedPaymentIds.contains(p.id))).toList();
+
+    if (nonGroupExpenses.isNotEmpty || nonGroupPayments.isNotEmpty) {
+      final Set<String> nonGroupMembers = {widget.user.uid};
+      for (var e in nonGroupExpenses) {
+        nonGroupMembers.add(e.paidBy);
+        nonGroupMembers.addAll(e.involvedMembers);
+        if (e.multiplePayers != null) nonGroupMembers.addAll(e.multiplePayers!.keys);
+      }
+      for (var p in nonGroupPayments) {
+        nonGroupMembers.add(p.from);
+        nonGroupMembers.add(p.to);
+      }
+
+      final nonGroupDebts = DebtCalculator.calculateDebts(nonGroupExpenses, nonGroupPayments, nonGroupMembers.toList());
+      for (var debt in nonGroupDebts) {
+        if (debt.from == widget.user.uid) {
+          balanceMap[debt.to] = (balanceMap[debt.to] ?? 0.0) - debt.amount;
+        } else if (debt.to == widget.user.uid) {
+          balanceMap[debt.from] = (balanceMap[debt.from] ?? 0.0) + debt.amount;
         }
       }
     }
@@ -242,7 +231,7 @@ class _HomeNavigationState extends State<HomeNavigation> {
                   stream: db.streamPayments(userUid: widget.user.uid),
                   builder: (context, paymentSnapshot) {
                     final payments = paymentSnapshot.data ?? [];
-                    final overallBalances = _calculateTotalBalances(expenses, payments, allUsers);
+                    final overallBalances = _calculateTotalBalances(expenses, payments, allUsers, groups);
 
                     return Scaffold(
                       extendBody: true,
