@@ -29,9 +29,8 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-  // Predefined master App Owner / Admin credentials
+  // Predefined master App Owner / Admin email
   static const String predefinedAdminEmail = "hamad@gmail.com";
-  static const String predefinedAdminPassword = "Hamad@123";
 
   bool isLogin = true;
   bool isOtpSent = false;
@@ -269,40 +268,7 @@ class _AuthScreenState extends State<AuthScreen> {
             onToggleVisibility: () => setState(() => passwordVisible = !passwordVisible),
             hint: "•••••••• (min 8 chars)",
           ),
-          const SizedBox(height: 8),
-          if (isLogin) ...[
-            Align(
-              alignment: Alignment.centerRight,
-              child: InkWell(
-                onTap: () {
-                  setState(() {
-                    emailController.text = predefinedAdminEmail;
-                    passwordController.text = predefinedAdminPassword;
-                  });
-                },
-                borderRadius: BorderRadius.circular(10),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.shield_rounded, size: 13, color: primaryBrandColor),
-                      const SizedBox(width: 4),
-                      Text(
-                        "Fill Owner Credentials",
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          color: primaryBrandColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
         ],
 
         // Confirm Password field for Signup
