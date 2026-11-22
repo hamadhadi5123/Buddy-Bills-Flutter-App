@@ -7,6 +7,7 @@ import '../models/user.dart';
 import '../services/database_service.dart';
 import '../widgets/glass_widgets.dart';
 import '../widgets/chat_widgets.dart';
+import '../widgets/user_avatar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class PrivateChatScreen extends StatefulWidget {
@@ -121,30 +122,20 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [primaryBrandColor, Color(0xFF8E84FF)]),
-                shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: primaryBrandColor.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 2))],
-              ),
-              child: Center(
-                child: Text(widget.recipient.name[0].toUpperCase(), 
-                  style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)
+        title: StreamBuilder<User?>(
+          stream: db.streamUser(widget.recipient.uid),
+          builder: (context, snapshot) {
+            final user = snapshot.data ?? widget.recipient;
+            return Row(
+              children: [
+                UserAvatar(
+                  imageUrl: user.profilePictureUrl,
+                  name: user.name,
+                  radius: 20,
                 ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: StreamBuilder<User?>(
-                stream: db.streamUser(widget.recipient.uid),
-                builder: (context, snapshot) {
-                  final user = snapshot.data ?? widget.recipient;
-                  
-                  return StreamBuilder<bool>(
+                const SizedBox(width: 12),
+                Expanded(
+                  child: StreamBuilder<bool>(
                     stream: db.streamTypingStatus(convId, widget.recipient.uid),
                     builder: (context, typingSnapshot) {
                       final isOtherTyping = typingSnapshot.data ?? false;
@@ -177,11 +168,11 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
                         ],
                       );
                     },
-                  );
-                }
-              ),
-            ),
-          ],
+                  ),
+                ),
+              ],
+            );
+          },
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,

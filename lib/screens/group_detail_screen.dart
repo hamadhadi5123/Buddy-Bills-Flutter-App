@@ -17,6 +17,7 @@ import '../models/user.dart' as model;
 import 'activity_history_screen.dart';
 import 'group_chat_screen.dart';
 import 'private_chat_screen.dart';
+import '../widgets/user_avatar.dart';
 
 class GroupDetailScreen extends StatefulWidget {
   final Group group;
@@ -498,7 +499,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             margin: const EdgeInsets.only(bottom: 12),
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
-              onTap: isExpense ? () => _showExpenseDetailsBottomSheet(item, group, hasAdminRights) : null,
+              onTap: isExpense 
+                  ? () => _showExpenseDetailsBottomSheet(item, group, hasAdminRights) 
+                  : () => _showPaymentDetailsBottomSheet(item as Payment, group, hasAdminRights),
               child: GlassCard(
                 padding: const EdgeInsets.all(16),
                 isDarkMode: widget.isDarkMode,
@@ -545,8 +548,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                         Text("PKR ${item.amount.toStringAsFixed(0)}", 
                           style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)
                         ),
-                        if (isExpense)
-                          Text("Details", style: GoogleFonts.poppins(fontSize: 10, color: primaryBrandColor.withOpacity(0.8), fontWeight: FontWeight.bold)),
+                        Text(isExpense ? "Details" : "Settled", style: GoogleFonts.poppins(fontSize: 10, color: (isExpense ? primaryBrandColor : accentGreen).withOpacity(0.8), fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ],
@@ -633,17 +635,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      CircleAvatar(
+                      UserAvatar(
+                        imageUrl: user.profilePictureUrl,
+                        name: user.name,
                         radius: 24,
                         backgroundColor: isMe ? const Color(0xFFD4AF37) : (isGroupAdmin ? const Color(0xFF27C46E) : Colors.grey.withOpacity(0.2)),
-                        child: Text(
-                          user.name.isNotEmpty ? user.name[0].toUpperCase() : "U", 
-                          style: TextStyle(
-                            color: isMe ? const Color(0xFF0F172A) : Colors.white, 
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          )
-                        ),
+                        textColor: isMe ? const Color(0xFF0F172A) : Colors.white,
                       ),
                       if (isGroupAdmin)
                         Positioned(
@@ -1608,6 +1605,155 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             child: const Text("Delete", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showPaymentDetailsBottomSheet(Payment payment, Group group, bool hasAdminRights) {
+    final textColor = widget.isDarkMode ? Colors.white : const Color(0xFF1A1A2E);
+    final fromUser = widget.allUsers.firstWhere(
+      (u) => u.uid == payment.from,
+      orElse: () => model.User(uid: payment.from, name: payment.from.length > 5 ? "Member ${payment.from.substring(payment.from.length - 4)}" : "Member ${payment.from}", email: "", createdAt: DateTime.now()),
+    );
+    final toUser = widget.allUsers.firstWhere(
+      (u) => u.uid == payment.to,
+      orElse: () => model.User(uid: payment.to, name: payment.to.length > 5 ? "Member ${payment.to.substring(payment.to.length - 4)}" : "Member ${payment.to}", email: "", createdAt: DateTime.now()),
+    );
+    final bool canDelete = payment.from == widget.currentUserUid || payment.to == widget.currentUserUid || hasAdminRights;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: widget.isDarkMode ? const Color(0xFF1E2230) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(2))),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: accentGreen.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(Icons.handshake_rounded, color: accentGreen, size: 28),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("Settlement Payment", style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
+                        Text("${payment.timestamp.day}/${payment.timestamp.month}/${payment.timestamp.year} at ${payment.timestamp.hour}:${payment.timestamp.minute.toString().padLeft(2, '0')}",
+                            style: GoogleFonts.poppins(fontSize: 12, color: textColor.withOpacity(0.5))),
+                      ],
+                    ),
+                  ),
+                  Text("PKR ${payment.amount.toStringAsFixed(0)}", style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: accentGreen)),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: textColor.withOpacity(0.04),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Paid By (Gave)", style: GoogleFonts.poppins(fontSize: 13, color: textColor.withOpacity(0.6))),
+                        Text(fromUser.name, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.bold, color: textColor)),
+                      ],
+                    ),
+                    const Divider(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Received By (Brought)", style: GoogleFonts.poppins(fontSize: 13, color: textColor.withOpacity(0.6))),
+                        Text(toUser.name, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.bold, color: textColor)),
+                      ],
+                    ),
+                    const Divider(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Status", style: GoogleFonts.poppins(fontSize: 13, color: textColor.withOpacity(0.6))),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(color: accentGreen.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+                          child: Text("Completed & Settled", style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.bold, color: accentGreen)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (canDelete && payment.id != null) ...[
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent.withOpacity(0.12),
+                      foregroundColor: Colors.redAccent,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: Colors.redAccent, width: 1)),
+                    ),
+                    onPressed: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (dCtx) => AlertDialog(
+                          backgroundColor: widget.isDarkMode ? const Color(0xFF1E2230) : Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          title: const Text("Delete Settlement?"),
+                          content: const Text("Are you sure you want to delete this payment record? The balance will be restored automatically."),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text("Cancel")),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                              onPressed: () => Navigator.pop(dCtx, true),
+                              child: const Text("Delete"),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirm == true) {
+                        final db = Provider.of<DatabaseService>(context, listen: false);
+                        await db.deletePayment(payment.id!);
+                        if (mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Settlement removed successfully")),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                    label: const Text("Delete Settlement Record", style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
       ),
     );
   }

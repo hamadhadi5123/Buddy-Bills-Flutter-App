@@ -6,6 +6,7 @@ import '../models/balance.dart';
 import '../models/user.dart';
 import '../services/database_service.dart';
 import 'private_chat_screen.dart';
+import '../widgets/user_avatar.dart';
 
 class FriendsScreen extends StatelessWidget {
   final List<User> allUsers;
@@ -192,8 +193,8 @@ class FriendsScreen extends StatelessWidget {
         : Colors.white.withOpacity(0.15);
 
     final balance = balances.firstWhere(
-      (b) => b.member == name,
-      orElse: () => Balance(member: name, amount: 0),
+      (b) => b.memberUid == friend.uid || b.member == name,
+      orElse: () => Balance(member: name, memberUid: friend.uid, amount: 0),
     );
 
     final String subtitle = balance.amount > 0
@@ -245,17 +246,10 @@ class FriendsScreen extends StatelessWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: primaryBrandColor.withOpacity(0.2), width: 1.5),
                 ),
-                child: CircleAvatar(
+                child: UserAvatar(
+                  imageUrl: friend.profilePictureUrl,
+                  name: name,
                   radius: small ? 18 : 22,
-                  backgroundColor: primaryBrandColor.withOpacity(0.1),
-                  child: Text(
-                    name[0].toUpperCase(),
-                    style: GoogleFonts.outfit(
-                      color: primaryBrandColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: small ? 16 : 18,
-                    ),
-                  ),
                 ),
               ),
               title: Text(

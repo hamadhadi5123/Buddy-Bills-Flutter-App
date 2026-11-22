@@ -257,8 +257,8 @@ class GroupsScreen extends StatelessWidget {
     double totalGroupOwed = 0;
     for (var member in group.members) {
       final balance = overallBalances.firstWhere(
-        (b) => b.member == member,
-        orElse: () => Balance(member: member, amount: 0),
+        (b) => b.memberUid == member || b.member == member,
+        orElse: () => Balance(member: member, memberUid: member, amount: 0),
       );
       if (balance.amount > 0) totalGroupOwed += balance.amount;
     }

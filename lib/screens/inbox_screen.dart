@@ -5,6 +5,7 @@ import '../models/user.dart';
 import '../services/database_service.dart';
 import '../widgets/glass_widgets.dart';
 import 'private_chat_screen.dart';
+import '../widgets/user_avatar.dart';
 import 'package:intl/intl.dart';
 
 class InboxScreen extends StatelessWidget {
@@ -86,16 +87,10 @@ class InboxScreen extends StatelessWidget {
             );
           },
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          leading: Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [primaryColor, primaryColor.withOpacity(0.7)]),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(otherUser.name[0].toUpperCase(), style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
-            ),
+          leading: UserAvatar(
+            imageUrl: otherUser.profilePictureUrl,
+            name: otherUser.name,
+            radius: 25,
           ),
           title: Text(
             otherUser.name, 

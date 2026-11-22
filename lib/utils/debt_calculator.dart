@@ -14,66 +14,85 @@ class DebtCalculator {
   static List<Debt> calculateDebts(List<Expense> expenses, List<Payment> payments, List<String> members) {
     Map<String, double> balances = {for (var m in members) m: 0.0};
 
-    // process expenses
+    // 1. Process expenses
     for (var exp in expenses) {
       // 1. Handle WHO PAID (The Credit)
       if (exp.multiplePayers != null && exp.multiplePayers!.isNotEmpty) {
-        // Multiple people paid
         for (var entry in exp.multiplePayers!.entries) {
-          balances[entry.key] = (balances[entry.key] ?? 0) + entry.value;
+          balances[entry.key] = (balances[entry.key] ?? 0.0) + entry.value;
         }
       } else {
-        // Fallback to single payer
-        balances[exp.paidBy] = (balances[exp.paidBy] ?? 0) + exp.amount;
+        balances[exp.paidBy] = (balances[exp.paidBy] ?? 0.0) + exp.amount;
       }
 
-      // 2. Handle WHO OWES (The Debt)
+      // 2. Handle WHO OWES (The Debt / Share)
       if (exp.splitType == 'equally') {
-        final share = exp.amount / (exp.involvedMembers.isEmpty ? 1 : exp.involvedMembers.length);
+        final count = exp.involvedMembers.isEmpty ? 1 : exp.involvedMembers.length;
+        final share = exp.amount / count;
         for (var m in exp.involvedMembers) {
-          balances[m] = (balances[m] ?? 0) - share;
+          balances[m] = (balances[m] ?? 0.0) - share;
         }
       } else if (exp.splitType == 'unequally' && exp.unequalAmounts != null) {
         for (var entry in exp.unequalAmounts!.entries) {
-          balances[entry.key] = (balances[entry.key] ?? 0) - entry.value;
+          balances[entry.key] = (balances[entry.key] ?? 0.0) - entry.value;
         }
       }
     }
 
-    // Process payments (settlements)
+    // 2. Process payments (settlements)
+    // When 'from' pays 'to':
+    // 'from' gave money, so their debt decreases / balance increases (+amount)
+    // 'to' received money, so their credit decreases / balance decreases (-amount)
     for (var pay in payments) {
-      balances[pay.from] = (balances[pay.from] ?? 0) + pay.amount;
-      balances[pay.to] = (balances[pay.to] ?? 0) - pay.amount;
+      balances[pay.from] = (balances[pay.from] ?? 0.0) + pay.amount;
+      balances[pay.to] = (balances[pay.to] ?? 0.0) - pay.amount;
     }
 
-    // Separate into Creditors and Debtors
-    // Identify the "Hub" - the member with the largest positive balance (Primary Payer)
-    String? hub;
-    double maxBalance = -1.0;
+    // 3. Separate members into Debtors and Creditors
+    // Positive balance (> 0.01) = Creditor (is owed money, should receive)
+    // Negative balance (< -0.01) = Debtor (owes money, should give)
+    List<MapEntry<String, double>> debtors = [];
+    List<MapEntry<String, double>> creditors = [];
 
     balances.forEach((uid, balance) {
-      if (balance > maxBalance) {
-        maxBalance = balance;
-        hub = uid;
+      // Round to 2 decimals to prevent floating point inaccuracies
+      final rounded = double.parse(balance.toStringAsFixed(2));
+      if (rounded < -0.01) {
+        debtors.add(MapEntry(uid, -rounded)); // Positive amount owed
+      } else if (rounded > 0.01) {
+        creditors.add(MapEntry(uid, rounded)); // Positive amount to receive
       }
     });
 
-    if (hub == null || maxBalance <= 0.01) return [];
+    // 4. Greedy Debt Minimization (Standard Splitwise Algorithm)
+    // Sort descending by amount to minimize total number of transactions
+    debtors.sort((a, b) => b.value.compareTo(a.value));
+    creditors.sort((a, b) => b.value.compareTo(a.value));
 
+    int dIdx = 0;
+    int cIdx = 0;
     List<Debt> debts = [];
 
-    // All debtors pay the Hub directly
-    balances.forEach((uid, balance) {
-      if (uid == hub) return;
-      
-      if (balance < -0.01) {
-        // Debtor owes the Hub
-        debts.add(Debt(from: uid, to: hub!, amount: -balance));
-      } else if (balance > 0.01) {
-        // Hub owes other minor creditors
-        debts.add(Debt(from: hub!, to: uid, amount: balance));
+    while (dIdx < debtors.length && cIdx < creditors.length) {
+      final debtor = debtors[dIdx];
+      final creditor = creditors[cIdx];
+
+      final double settleAmount = debtor.value < creditor.value ? debtor.value : creditor.value;
+
+      if (settleAmount > 0.01) {
+        debts.add(Debt(from: debtor.key, to: creditor.key, amount: settleAmount));
       }
-    });
+
+      debtors[dIdx] = MapEntry(debtor.key, debtor.value - settleAmount);
+      creditors[cIdx] = MapEntry(creditor.key, creditor.value - settleAmount);
+
+      if (debtors[dIdx].value <= 0.01) {
+        dIdx++;
+      }
+      if (creditors[cIdx].value <= 0.01) {
+        cIdx++;
+      }
+    }
 
     return debts;
   }

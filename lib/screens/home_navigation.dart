@@ -141,7 +141,7 @@ class _HomeNavigationState extends State<HomeNavigation> {
               createdAt: DateTime.now()
             )
           );
-          return Balance(member: user.name, amount: e.value);
+          return Balance(member: user.name, memberUid: e.key, amount: e.value);
         })
         .where((b) => b.amount.abs() > 0.01)
         .toList();
@@ -206,7 +206,7 @@ class _HomeNavigationState extends State<HomeNavigation> {
           createdAt: DateTime.now()
         )
       );
-      return Balance(member: user.name, amount: e.value);
+      return Balance(member: user.name, memberUid: e.key, amount: e.value);
     }).toList();
   }
 

@@ -222,6 +222,15 @@ class DatabaseService {
     }
   }
 
+  Future<void> deletePayment(String paymentId) async {
+    try {
+      await _db.collection('payments').doc(paymentId).delete();
+    } catch (e) {
+      debugPrint('Error deleting payment: $e');
+      rethrow;
+    }
+  }
+
   Stream<List<Payment>> streamPayments({String? groupId, String? userUid}) {
     Query query = _db.collection('payments');
 
