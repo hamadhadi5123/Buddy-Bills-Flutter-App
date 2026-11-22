@@ -255,6 +255,7 @@ class _HomeNavigationState extends State<HomeNavigation> {
                             GroupsScreen(
                               groups: groups,
                               currentUser: widget.user.name,
+                              currentUserUid: widget.user.uid,
                               overallBalances: overallBalances,
                               onCreateGroup: () async {
                                 final created = await Navigator.push<Group?>(
@@ -403,15 +404,21 @@ class _HomeNavigationState extends State<HomeNavigation> {
               borderRadius: BorderRadius.circular(30),
               border: Border.all(color: glassBorderColor, width: 1.5),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(0, Icons.grid_view_rounded, "Groups"),
-                _buildNavItem(1, Icons.people_alt_rounded, "Friends"),
-                _buildNavItem(2, Icons.forum_rounded, "Chats"),
-                _buildNavItem(3, Icons.history_rounded, "History"),
-                _buildNavItem(4, Icons.person_rounded, "Profile"),
-              ],
+            child: StreamBuilder<int>(
+              stream: Provider.of<DatabaseService>(context, listen: false).streamTotalUnreadMessages(widget.user.uid),
+              builder: (context, unreadSnapshot) {
+                final unreadCount = unreadSnapshot.data ?? 0;
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildNavItem(0, Icons.grid_view_rounded, "Groups"),
+                    _buildNavItem(1, Icons.people_alt_rounded, "Friends"),
+                    _buildNavItem(2, Icons.forum_rounded, "Chats", badgeCount: unreadCount),
+                    _buildNavItem(3, Icons.history_rounded, "History"),
+                    _buildNavItem(4, Icons.person_rounded, "Profile"),
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -419,7 +426,7 @@ class _HomeNavigationState extends State<HomeNavigation> {
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, String label) {
+  Widget _buildNavItem(int index, IconData icon, String label, {int badgeCount = 0}) {
     bool isSelected = _currentIndex == index;
     Color color = isSelected ? primaryBrandColor : (isDarkMode ? Colors.white38 : Colors.black38);
 
@@ -436,7 +443,42 @@ class _HomeNavigationState extends State<HomeNavigation> {
               color: isSelected ? primaryBrandColor.withOpacity(0.1) : Colors.transparent,
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Icon(icon, color: color, size: 26),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(icon, color: color, size: 26),
+                if (badgeCount > 0)
+                  Positioned(
+                    right: -6,
+                    top: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF5252),
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFFF5252).withOpacity(0.5),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      child: Center(
+                        child: Text(
+                          badgeCount > 99 ? '99+' : '$badgeCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
           const SizedBox(height: 4),
           Text(

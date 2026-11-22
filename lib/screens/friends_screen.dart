@@ -1,8 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import '../models/balance.dart';
 import '../models/user.dart';
+import '../services/database_service.dart';
 import 'private_chat_screen.dart';
 
 class FriendsScreen extends StatelessWidget {
@@ -195,10 +197,10 @@ class FriendsScreen extends StatelessWidget {
     );
 
     final String subtitle = balance.amount > 0
-        ? "Owes you PKR ${balance.amount.toStringAsFixed(2)}"
+        ? "You Bring PKR ${balance.amount.toStringAsFixed(2)}"
         : balance.amount < 0
-        ? "You owe PKR ${balance.amount.abs().toStringAsFixed(2)}"
-        : "Settled up";
+        ? "You Give PKR ${balance.amount.abs().toStringAsFixed(2)}"
+        : "All settled up!";
 
     final Color subtitleColor = balance.amount > 0
         ? accentGreen
@@ -271,13 +273,56 @@ class FriendsScreen extends StatelessWidget {
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: primaryBrandColor.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.forum_rounded, color: primaryBrandColor, size: 18),
+                  StreamBuilder<int>(
+                    stream: Provider.of<DatabaseService>(context, listen: false)
+                        .streamConversationUnread(
+                          currentUser.uid.compareTo(friend.uid) < 0 
+                              ? "${currentUser.uid}_${friend.uid}" 
+                              : "${friend.uid}_${currentUser.uid}", 
+                          currentUser.uid
+                        ),
+                    builder: (context, unreadSnap) {
+                      final unread = unreadSnap.data ?? 0;
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: primaryBrandColor.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.forum_rounded, color: primaryBrandColor, size: 18),
+                          ),
+                          if (unread > 0)
+                            Positioned(
+                              right: -4,
+                              top: -4,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFF5252),
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFFF5252).withOpacity(0.4),
+                                      blurRadius: 3,
+                                      offset: const Offset(0, 1),
+                                    ),
+                                  ],
+                                ),
+                                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                child: Center(
+                                  child: Text(
+                                    unread > 99 ? '99+' : '$unread',
+                                    style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(width: 8),
                   Container(

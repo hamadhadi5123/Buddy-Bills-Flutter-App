@@ -126,18 +126,59 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                             tooltip: "Edit Group",
                             onPressed: () => _showEditGroupDialog(currentGroup),
                           ),
-                        IconButton(
-                          icon: Icon(Icons.forum_outlined, color: primaryBrandColor),
-                          tooltip: "Group Chat",
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => GroupChatScreen(
-                                  group: currentGroup,
-                                  currentUser: currentUser,
+                        StreamBuilder<int>(
+                          stream: db.streamGroupUnreadCount(currentGroup.id!, widget.currentUserUid),
+                          builder: (context, unreadSnapshot) {
+                            final unread = unreadSnapshot.data ?? 0;
+                            return Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                IconButton(
+                                  icon: Icon(Icons.forum_outlined, color: primaryBrandColor),
+                                  tooltip: "Group Chat",
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => GroupChatScreen(
+                                          group: currentGroup,
+                                          currentUser: currentUser,
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
-                              ),
+                                if (unread > 0)
+                                  Positioned(
+                                    right: 6,
+                                    top: 6,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFF5252),
+                                        borderRadius: BorderRadius.circular(10),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: const Color(0xFFFF5252).withOpacity(0.5),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 1),
+                                          ),
+                                        ],
+                                      ),
+                                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                      child: Center(
+                                        child: Text(
+                                          unread > 99 ? '99+' : '$unread',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             );
                           },
                         ),
@@ -304,7 +345,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Who owes Whom", 
+        Text("Who Gives & Who Brings", 
           style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w600, color: textColor)
         ),
         const SizedBox(height: 12),
@@ -359,19 +400,34 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                         text: TextSpan(
                           style: GoogleFonts.poppins(color: textColor, fontSize: 13),
                           children: [
-                            TextSpan(text: iOwe ? "You owe " : "${fromUser.name} owes "),
-                            TextSpan(
-                              text: owesMe ? "you" : toUser.name,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
+                            if (iOwe) ...[
+                              const TextSpan(text: "You Give to ", style: TextStyle(fontWeight: FontWeight.w600)),
+                              TextSpan(
+                                text: toUser.name,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ] else if (owesMe) ...[
+                              const TextSpan(text: "You Bring from ", style: TextStyle(fontWeight: FontWeight.w600)),
+                              TextSpan(
+                                text: fromUser.name,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ] else ...[
+                              TextSpan(text: "${fromUser.name} Gives to "),
+                              TextSpan(
+                                text: toUser.name,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ],
                           ],
                         ),
                       ),
-                      Text("PKR $displayAmount", 
+                      Text(
+                        iOwe ? "Give PKR $displayAmount" : (owesMe ? "Bring PKR $displayAmount" : "PKR $displayAmount"), 
                         style: GoogleFonts.outfit(
                           fontSize: 18, 
                           fontWeight: FontWeight.bold, 
-                          color: iOwe ? Colors.redAccent : accentGreen
+                          color: iOwe ? Colors.redAccent : (owesMe ? accentGreen : textColor)
                         )
                       ),
                     ],
@@ -680,22 +736,22 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       subtitle: Text(
-                        iOwe ? "You owe PKR ${debt.amount}" : "Owes you PKR ${debt.amount}", 
-                        style: TextStyle(color: iOwe ? Colors.redAccent : accentGreen),
+                        iOwe ? "You Give PKR ${debt.amount.toStringAsFixed(0)}" : "You Bring PKR ${debt.amount.toStringAsFixed(0)}", 
+                        style: TextStyle(color: iOwe ? Colors.redAccent : accentGreen, fontWeight: FontWeight.w600),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       trailing: SizedBox(
                         height: 36,
                         child: ElevatedButton(
-                          onPressed: () => _performSettlement(debt, otherUid, iOwe),
+                          onPressed: () => _showPartialSettlementDialog(debt, user, iOwe),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: accentGreen, 
                             foregroundColor: Colors.white, 
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(horizontal: 12)
+                            padding: const EdgeInsets.symmetric(horizontal: 14)
                           ),
-                          child: const Text("Pay", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                          child: Text(iOwe ? "Give" : "Bring", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ),
@@ -710,26 +766,267 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
-  void _performSettlement(Debt debt, String otherUid, bool iOwe) async {
+  void _showPartialSettlementDialog(Debt debt, model.User otherUser, bool iOwe) {
+    final textColor = widget.isDarkMode ? Colors.white : const Color(0xFF1A1A2E);
+    final amountController = TextEditingController(text: debt.amount.toStringAsFixed(0));
+    double enteredAmount = debt.amount;
+    String? errorMessage;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (bottomSheetContext) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final remaining = (debt.amount - enteredAmount).clamp(0.0, debt.amount);
+          final isFull = (enteredAmount - debt.amount).abs() < 0.01;
+          final isValid = enteredAmount > 0 && enteredAmount <= debt.amount;
+
+          return BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              margin: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+              decoration: BoxDecoration(
+                color: widget.isDarkMode ? const Color(0xFF1A1A2E) : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+              ),
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundColor: (iOwe ? Colors.redAccent : accentGreen).withOpacity(0.12),
+                        child: Icon(
+                          iOwe ? Icons.arrow_outward_rounded : Icons.arrow_downward_rounded,
+                          color: iOwe ? Colors.redAccent : accentGreen,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              iOwe ? "Give Payment" : "Bring / Receive",
+                              style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: textColor),
+                            ),
+                            Text(
+                              iOwe ? "To ${otherUser.name}" : "From ${otherUser.name}",
+                              style: GoogleFonts.poppins(fontSize: 13, color: textColor.withOpacity(0.6)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: primaryBrandColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          "Total Due: PKR ${debt.amount.toStringAsFixed(0)}",
+                          style: GoogleFonts.poppins(color: primaryBrandColor, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Text("Enter Amount to Settle", style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: textColor)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: textColor),
+                    decoration: InputDecoration(
+                      prefixText: "PKR  ",
+                      prefixStyle: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: primaryBrandColor),
+                      filled: true,
+                      fillColor: textColor.withOpacity(0.04),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: textColor.withOpacity(0.1))),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: primaryBrandColor, width: 2)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      errorText: errorMessage,
+                    ),
+                    onChanged: (val) {
+                      setModalState(() {
+                        final parsed = double.tryParse(val) ?? 0.0;
+                        enteredAmount = parsed;
+                        if (parsed <= 0) {
+                          errorMessage = "Amount must be greater than 0";
+                        } else if (parsed > debt.amount) {
+                          errorMessage = "Amount cannot exceed total due of PKR ${debt.amount.toStringAsFixed(0)}";
+                        } else {
+                          errorMessage = null;
+                        }
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  // Quick Preset Chips
+                  Row(
+                    children: [
+                      ActionChip(
+                        label: Text("Full (PKR ${debt.amount.toStringAsFixed(0)})", style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600)),
+                        backgroundColor: (enteredAmount == debt.amount) ? primaryBrandColor.withOpacity(0.2) : textColor.withOpacity(0.05),
+                        onPressed: () {
+                          setModalState(() {
+                            enteredAmount = debt.amount;
+                            amountController.text = debt.amount.toStringAsFixed(0);
+                            errorMessage = null;
+                          });
+                        },
+                      ),
+                      if (debt.amount >= 100) ...[
+                        const SizedBox(width: 8),
+                        ActionChip(
+                          label: Text("Half (PKR ${(debt.amount / 2).toStringAsFixed(0)})", style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600)),
+                          backgroundColor: ((enteredAmount - (debt.amount / 2)).abs() < 1) ? primaryBrandColor.withOpacity(0.2) : textColor.withOpacity(0.05),
+                          onPressed: () {
+                            setModalState(() {
+                              final half = (debt.amount / 2).roundToDouble();
+                              enteredAmount = half;
+                              amountController.text = half.toStringAsFixed(0);
+                              errorMessage = null;
+                            });
+                          },
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Real-time calculation preview
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: (isFull ? accentGreen : Colors.amber).withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: (isFull ? accentGreen : Colors.amber).withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(isFull ? Icons.check_circle_rounded : Icons.info_outline_rounded,
+                            color: isFull ? accentGreen : Colors.amber.shade700, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isFull ? "Full Settlement" : "Partial Settlement",
+                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.bold, color: isFull ? accentGreen : Colors.amber.shade900),
+                              ),
+                              Text(
+                                isFull
+                                    ? "This will clear 100% of the balance between you and ${otherUser.name}."
+                                    : "After paying PKR ${enteredAmount.toStringAsFixed(0)}, remaining due will be PKR ${remaining.toStringAsFixed(0)}.",
+                                style: GoogleFonts.poppins(fontSize: 11, color: textColor.withOpacity(0.7)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(bottomSheetContext),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            side: BorderSide(color: textColor.withOpacity(0.2)),
+                          ),
+                          child: Text("Cancel", style: GoogleFonts.poppins(color: textColor, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: isValid
+                              ? () => _performCustomSettlement(
+                                    debt: debt,
+                                    otherUid: otherUser.uid,
+                                    iOwe: iOwe,
+                                    amount: enteredAmount,
+                                    bottomSheetContext: bottomSheetContext,
+                                  )
+                              : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: accentGreen,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            elevation: 0,
+                          ),
+                          child: Text(
+                            isFull ? "Settle Full (PKR ${enteredAmount.toStringAsFixed(0)})" : "Settle PKR ${enteredAmount.toStringAsFixed(0)}",
+                            style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _performCustomSettlement({
+    required Debt debt,
+    required String otherUid,
+    required bool iOwe,
+    required double amount,
+    required BuildContext bottomSheetContext,
+  }) async {
     final db = Provider.of<DatabaseService>(context, listen: false);
     
     final payment = Payment(
       from: iOwe ? widget.currentUserUid : otherUid,
       to: iOwe ? otherUid : widget.currentUserUid,
       involvedUsers: [widget.currentUserUid, otherUid],
-      amount: debt.amount,
+      amount: amount,
       groupId: widget.group.id,
       timestamp: DateTime.now(),
     );
 
     await db.addPayment(payment);
-    final currentUser = widget.allUsers.firstWhere((u) => u.uid == widget.currentUserUid, orElse: () => model.User(uid: widget.currentUserUid, name: "User", email: "", createdAt: DateTime.now()));
-    await UserActivityService.logPaymentCreated(widget.currentUserUid, currentUser.name, debt.amount, payment.from, payment.to);
+    final currentUser = widget.allUsers.firstWhere(
+      (u) => u.uid == widget.currentUserUid, 
+      orElse: () => model.User(uid: widget.currentUserUid, name: "User", email: "", createdAt: DateTime.now())
+    );
+    await UserActivityService.logPaymentCreated(widget.currentUserUid, currentUser.name, amount, payment.from, payment.to);
     
     if (!mounted) return;
-    Navigator.pop(context);
+    Navigator.pop(bottomSheetContext); // Close partial dialog
+    Navigator.pop(context); // Close settle-up list bottom sheet
+
+    final remaining = debt.amount - amount;
+    final message = remaining <= 0.01 
+        ? "Full settlement of PKR ${amount.toStringAsFixed(0)} recorded successfully!"
+        : "Partial payment of PKR ${amount.toStringAsFixed(0)} recorded! Remaining due: PKR ${remaining.toStringAsFixed(0)}";
+
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Settlement recorded successfully!"), backgroundColor: accentGreen)
+      SnackBar(content: Text(message), backgroundColor: accentGreen)
     );
   }
 
@@ -992,7 +1289,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        "You currently owe PKR ${totalOwed.toStringAsFixed(2)} in this group. It is recommended to settle up before leaving.",
+                        "You currently need to Give PKR ${totalOwed.toStringAsFixed(2)} in this group. It is recommended to settle up before leaving.",
                         style: GoogleFonts.poppins(fontSize: 12, color: Colors.redAccent, fontWeight: FontWeight.w600),
                       ),
                     ),

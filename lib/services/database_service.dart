@@ -9,6 +9,8 @@ import '../models/chat_message.dart';
 class DatabaseService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  DatabaseService();
+
   // ================= USER OPERATIONS =================
   Stream<User?> streamUser(String uid) {
     return _db.collection('users').doc(uid).snapshots().map((doc) {
@@ -262,6 +264,9 @@ class DatabaseService {
           .doc(groupId)
           .collection('messages')
           .doc();
+      final readByList = message.readBy.contains(message.senderId)
+          ? message.readBy
+          : [...message.readBy, message.senderId];
       final msgWithId = ChatMessage(
         id: docRef.id,
         senderId: message.senderId,
@@ -269,9 +274,17 @@ class DatabaseService {
         content: message.content,
         timestamp: message.timestamp,
         type: message.type,
-        readBy: message.readBy,
+        readBy: readByList,
       );
       await docRef.set(msgWithId.toMap());
+
+      // Update group with last message for quick reference
+      await _db.collection('groups').doc(groupId).set({
+        'lastMessage': message.content,
+        'lastMessageTime': message.timestamp.millisecondsSinceEpoch,
+        'lastSenderId': message.senderId,
+        'lastSenderName': message.senderName,
+      }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('Error sending message: $e');
       rethrow;
@@ -292,6 +305,25 @@ class DatabaseService {
     } catch (e) {
       debugPrint('Error marking message as read: $e');
     }
+  }
+
+  Stream<int> streamGroupUnreadCount(String groupId, String userId) {
+    return _db
+        .collection('groups')
+        .doc(groupId)
+        .collection('messages')
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.where((doc) {
+        final data = doc.data();
+        final senderId = data['senderId'] ?? '';
+        final readBy = List<String>.from(data['readBy'] ?? []);
+        return senderId != userId && !readBy.contains(userId);
+      }).length;
+    }).handleError((error) {
+      debugPrint('Error streaming group unread: $error');
+      return 0;
+    });
   }
 
   Stream<List<ChatMessage>> streamChatMessages(String groupId) {
@@ -329,6 +361,10 @@ class DatabaseService {
           .collection('messages')
           .doc();
 
+      final readByList = message.readBy.contains(currentUserId)
+          ? message.readBy
+          : [...message.readBy, currentUserId];
+
       final msgWithId = ChatMessage(
         id: docRef.id,
         senderId: message.senderId,
@@ -336,19 +372,20 @@ class DatabaseService {
         content: message.content,
         timestamp: message.timestamp,
         type: message.type,
-        readBy: message.readBy,
+        readBy: readByList,
       );
 
       // 1. Add message with ID to the subcollection
       await docRef.set(msgWithId.toMap());
 
-      // 2. Update conversation summary/metadata
+      // 2. Update conversation summary/metadata with unread counter
       await _db.collection('conversations').doc(convId).set({
         'participants': [currentUserId, recipientId],
         'lastMessage': message.content,
         'lastTimestamp': message.timestamp.millisecondsSinceEpoch,
         'lastSenderId': currentUserId,
         'conversationId': convId,
+        'unread_$recipientId': FieldValue.increment(1),
       }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('Error sending private message: $e');
@@ -388,6 +425,50 @@ class DatabaseService {
     } catch (e) {
       debugPrint('Error marking private message as read: $e');
     }
+  }
+
+  Future<void> markConversationAsRead(String convId, String userId) async {
+    try {
+      await _db.collection('conversations').doc(convId).set({
+        'unread_$userId': 0,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Error clearing conversation unread count: $e');
+    }
+  }
+
+  Stream<int> streamTotalUnreadMessages(String userId) {
+    return _db
+        .collection('conversations')
+        .where('participants', arrayContains: userId)
+        .snapshots()
+        .map((snapshot) {
+      int count = 0;
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final unread = (data['unread_$userId'] as num?)?.toInt() ?? 0;
+        count += unread;
+      }
+      return count;
+    }).handleError((error) {
+      debugPrint('Error streaming total unread: $error');
+      return 0;
+    });
+  }
+
+  Stream<int> streamConversationUnread(String convId, String userId) {
+    return _db
+        .collection('conversations')
+        .doc(convId)
+        .snapshots()
+        .map((doc) {
+      if (!doc.exists) return 0;
+      final data = doc.data() as Map<String, dynamic>;
+      return (data['unread_$userId'] as num?)?.toInt() ?? 0;
+    }).handleError((error) {
+      debugPrint('Error streaming conv unread: $error');
+      return 0;
+    });
   }
 
   Stream<List<Map<String, dynamic>>> streamRecentConversations(String userUid) {

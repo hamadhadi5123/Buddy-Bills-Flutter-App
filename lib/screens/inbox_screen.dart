@@ -69,6 +69,8 @@ class InboxScreen extends StatelessWidget {
   Widget _buildConversationCard(BuildContext context, Map<String, dynamic> conv, User otherUser, Color textColor, Color primaryColor) {
     final lastTimestamp = DateTime.fromMillisecondsSinceEpoch(conv['lastTimestamp'] ?? 0);
     final timeStr = DateFormat.jm().format(lastTimestamp);
+    final unreadCount = (conv['unread_${currentUser.uid}'] as num?)?.toInt() ?? 
+        (conv['lastSenderId'] != currentUser.uid ? 1 : 0);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -95,24 +97,58 @@ class InboxScreen extends StatelessWidget {
               child: Text(otherUser.name[0].toUpperCase(), style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
             ),
           ),
-          title: Text(otherUser.name, style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: textColor)),
+          title: Text(
+            otherUser.name, 
+            style: GoogleFonts.poppins(
+              fontWeight: unreadCount > 0 ? FontWeight.bold : FontWeight.w600, 
+              color: textColor
+            )
+          ),
           subtitle: Text(
             conv['lastMessage'] ?? '',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.poppins(fontSize: 13, color: textColor.withOpacity(0.5)),
+            style: GoogleFonts.poppins(
+              fontSize: 13, 
+              fontWeight: unreadCount > 0 ? FontWeight.w500 : FontWeight.normal,
+              color: unreadCount > 0 ? textColor : textColor.withOpacity(0.5)
+            ),
           ),
           trailing: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(timeStr, style: GoogleFonts.poppins(fontSize: 10, color: textColor.withOpacity(0.4))),
-              const SizedBox(height: 4),
-              if (conv['lastSenderId'] != currentUser.uid)
+              Text(
+                timeStr, 
+                style: GoogleFonts.poppins(
+                  fontSize: 10, 
+                  fontWeight: unreadCount > 0 ? FontWeight.bold : FontWeight.normal,
+                  color: unreadCount > 0 ? primaryColor : textColor.withOpacity(0.4)
+                )
+              ),
+              const SizedBox(height: 6),
+              if (unreadCount > 0)
                 Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(color: Color(0xFF6C63FF), shape: BoxShape.circle),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF5252),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFF5252).withOpacity(0.4),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    unreadCount > 99 ? '99+' : '$unreadCount',
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
             ],
           ),

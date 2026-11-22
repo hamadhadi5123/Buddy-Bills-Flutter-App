@@ -219,6 +219,7 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
                         db.markPrivateMessageAsRead(convId, msg.id, widget.currentUser.uid);
                       }
                     }
+                    db.markConversationAsRead(convId, widget.currentUser.uid);
                   });
                   
                   return ListView.builder(

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import '../models/group.dart';
 import '../models/balance.dart';
+import '../services/database_service.dart';
 import '../widgets/glass_widgets.dart';
 import '../theme/premium_theme.dart';
 
@@ -13,6 +15,7 @@ class GroupsScreen extends StatelessWidget {
   final VoidCallback onAddExpense;
   final List<Balance> overallBalances;
   final String currentUser;
+  final String? currentUserUid;
   final bool isDarkMode;
 
   const GroupsScreen({
@@ -23,6 +26,7 @@ class GroupsScreen extends StatelessWidget {
     required this.onAddExpense,
     required this.overallBalances,
     required this.currentUser,
+    this.currentUserUid,
     required this.isDarkMode,
   });
 
@@ -303,6 +307,45 @@ class GroupsScreen extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (currentUserUid != null)
+                    StreamBuilder<int>(
+                      stream: Provider.of<DatabaseService>(context, listen: false)
+                          .streamGroupUnreadCount(group.id!, currentUserUid!),
+                      builder: (context, unreadSnap) {
+                        final unread = unreadSnap.data ?? 0;
+                        if (unread == 0) return const SizedBox.shrink();
+                        return Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF5252),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFF5252).withOpacity(0.4),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.forum_rounded, color: Colors.white, size: 12),
+                              const SizedBox(width: 4),
+                              Text(
+                                unread > 99 ? '99+' : '$unread',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                   Icon(Icons.arrow_forward_ios_rounded, color: textColor.withOpacity(0.2), size: 18),
                 ],
               ),

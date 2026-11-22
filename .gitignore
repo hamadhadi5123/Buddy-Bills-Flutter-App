@@ -48,4 +48,5 @@ app.*.map.json
 .vscode/
 
 # Widget Preview related
+*.apk
 .widget_preview/

@@ -83,6 +83,14 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                   
                   final messages = snapshot.data ?? [];
                   
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    for (var m in messages) {
+                      if (m.senderId != widget.currentUser.uid && !m.isReadBy(widget.currentUser.uid)) {
+                        db.markMessageAsRead(widget.group.id!, m.id, widget.currentUser.uid);
+                      }
+                    }
+                  });
+                  
                   return ListView.builder(
                     controller: _scrollController,
                     reverse: true,

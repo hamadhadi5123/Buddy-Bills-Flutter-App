@@ -14,3 +14,9 @@
 -keep class com.google.android.gms.** { *; }
 -dontwarn com.google.firebase.**
 -keep class com.google.firebase.** { *; }
+
+# Google Play Core / Deferred Components Rules
+-dontwarn com.google.android.play.core.**
+-dontwarn com.google.android.play.core.splitcompat.SplitCompatApplication
+-dontwarn com.google.android.play.core.splitinstall.**
+-dontwarn com.google.android.play.core.tasks.**
