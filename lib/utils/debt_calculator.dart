@@ -43,9 +43,12 @@ class DebtCalculator {
     // When 'from' pays 'to':
     // 'from' gave money, so their debt decreases / balance increases (+amount)
     // 'to' received money, so their credit decreases / balance decreases (-amount)
+    // Only approved payments are processed; pending requests do not settle debt until accepted
     for (var pay in payments) {
-      balances[pay.from] = (balances[pay.from] ?? 0.0) + pay.amount;
-      balances[pay.to] = (balances[pay.to] ?? 0.0) - pay.amount;
+      if (pay.status == 'approved' || pay.status.isEmpty) {
+        balances[pay.from] = (balances[pay.from] ?? 0.0) + pay.amount;
+        balances[pay.to] = (balances[pay.to] ?? 0.0) - pay.amount;
+      }
     }
 
     // 3. Separate members into Debtors and Creditors

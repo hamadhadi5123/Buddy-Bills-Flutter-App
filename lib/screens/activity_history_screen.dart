@@ -103,8 +103,22 @@ class ActivityHistoryScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    Text("PKR ${item.amount.toStringAsFixed(0)}", 
-                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text("PKR ${item.amount.toStringAsFixed(0)}", 
+                          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)
+                        ),
+                        if (!isExpense)
+                          Text(
+                            (item as Payment).status == 'pending' ? "Pending" : ((item).status == 'rejected' ? "Rejected" : "Settled"),
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: (item as Payment).status == 'pending' ? Colors.orange : ((item).status == 'rejected' ? Colors.redAccent : accentGreen),
+                            ),
+                          ),
+                      ],
                     ),
                   ],
                 ),

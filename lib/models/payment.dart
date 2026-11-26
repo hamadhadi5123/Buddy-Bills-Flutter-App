@@ -7,6 +7,8 @@ class Payment {
   final double amount;
   final String? groupId;
   final DateTime timestamp;
+  final String status; // 'pending', 'approved', 'rejected'
+  final String? requestedBy;
 
   Payment({
     this.id,
@@ -16,6 +18,8 @@ class Payment {
     required this.amount,
     this.groupId,
     required this.timestamp,
+    this.status = 'approved',
+    this.requestedBy,
   });
 
   Map<String, dynamic> toMap() {
@@ -26,6 +30,8 @@ class Payment {
       'amount': amount,
       'groupId': groupId,
       'timestamp': timestamp.millisecondsSinceEpoch,
+      'status': status,
+      if (requestedBy != null) 'requestedBy': requestedBy,
     };
   }
 
@@ -40,6 +46,32 @@ class Payment {
       timestamp: map['timestamp'] != null
           ? DateTime.fromMillisecondsSinceEpoch(map['timestamp'])
           : DateTime.now(),
+      status: map['status'] ?? 'approved',
+      requestedBy: map['requestedBy'],
+    );
+  }
+
+  Payment copyWith({
+    String? id,
+    String? from,
+    String? to,
+    List<String>? involvedUsers,
+    double? amount,
+    String? groupId,
+    DateTime? timestamp,
+    String? status,
+    String? requestedBy,
+  }) {
+    return Payment(
+      id: id ?? this.id,
+      from: from ?? this.from,
+      to: to ?? this.to,
+      involvedUsers: involvedUsers ?? this.involvedUsers,
+      amount: amount ?? this.amount,
+      groupId: groupId ?? this.groupId,
+      timestamp: timestamp ?? this.timestamp,
+      status: status ?? this.status,
+      requestedBy: requestedBy ?? this.requestedBy,
     );
   }
 }

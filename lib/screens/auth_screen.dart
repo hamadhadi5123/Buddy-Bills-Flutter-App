@@ -106,6 +106,24 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
+  bool _isNetworkError(dynamic e) {
+    if (e == null) return false;
+    if (e is fb.FirebaseAuthException) {
+      if (e.code == 'network-request-failed' || e.code == 'unavailable') return true;
+    }
+    final str = e.toString().toLowerCase();
+    return str.contains('network') ||
+        str.contains('socketexception') ||
+        str.contains('clientexception') ||
+        str.contains('connection refused') ||
+        str.contains('connection reset') ||
+        str.contains('failed host lookup') ||
+        str.contains('network_error') ||
+        str.contains('apiexception: 7') ||
+        str.contains('no internet') ||
+        str.contains('unreachable');
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -784,7 +802,9 @@ class _AuthScreenState extends State<AuthScreen> {
       await _navigate(appUser);
 
     } on fb.FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
+      if (_isNetworkError(e)) {
+        showMessage("Please check your internet connection and try again.", isError: true);
+      } else if (e.code == 'user-not-found') {
         showMessage("No account found with this email. Please sign up first.", isError: true);
       } else if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
         showMessage("Invalid email or password. Please try again.", isError: true);
@@ -794,7 +814,11 @@ class _AuthScreenState extends State<AuthScreen> {
         showMessage(e.message ?? "Authentication failed [${e.code}]", isError: true);
       }
     } catch (e) {
-      showMessage("Login failed: ${e.toString()}", isError: true);
+      if (_isNetworkError(e)) {
+        showMessage("Please check your internet connection and try again.", isError: true);
+      } else {
+        showMessage("Login failed: ${e.toString()}", isError: true);
+      }
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -860,7 +884,11 @@ class _AuthScreenState extends State<AuthScreen> {
       }
     } catch (e) {
       if (mounted) setState(() => isLoading = false);
-      showMessage("Failed to generate OTP: ${e.toString()}", isError: true);
+      if (_isNetworkError(e)) {
+        showMessage("Please check your internet connection and try again.", isError: true);
+      } else {
+        showMessage("Failed to generate OTP: ${e.toString()}", isError: true);
+      }
     }
   }
 
@@ -892,7 +920,11 @@ class _AuthScreenState extends State<AuthScreen> {
         showMessage("Email dispatch warning: ${emailResult['message']}", isError: true);
       }
     } catch (e) {
-      showMessage("Failed to resend OTP: ${e.toString()}", isError: true);
+      if (_isNetworkError(e)) {
+        showMessage("Please check your internet connection and try again.", isError: true);
+      } else {
+        showMessage("Failed to resend OTP: ${e.toString()}", isError: true);
+      }
     }
   }
 
@@ -974,14 +1006,20 @@ class _AuthScreenState extends State<AuthScreen> {
       }
     } on fb.FirebaseAuthException catch (e) {
       if (mounted) setState(() => isLoading = false);
-      if (e.code == 'invalid-email') {
+      if (_isNetworkError(e)) {
+        showMessage("Please check your internet connection and try again.", isError: true);
+      } else if (e.code == 'invalid-email') {
         showMessage("Please provide a valid email address.", isError: true);
       } else {
         showMessage(e.message ?? "Registration failed [${e.code}]", isError: true);
       }
     } catch (e) {
       if (mounted) setState(() => isLoading = false);
-      showMessage("Error during account registration: ${e.toString()}", isError: true);
+      if (_isNetworkError(e)) {
+        showMessage("Please check your internet connection and try again.", isError: true);
+      } else {
+        showMessage("Error during account registration: ${e.toString()}", isError: true);
+      }
     }
   }
 
@@ -994,12 +1032,19 @@ class _AuthScreenState extends State<AuthScreen> {
       if (kIsWeb) {
         cred = await fb.FirebaseAuth.instance.signInWithPopup(fb.GoogleAuthProvider());
       } else {
-        final googleUser = await GoogleSignIn().signIn();
+        final GoogleSignIn googleSignIn = GoogleSignIn(
+          serverClientId: "888705135654-926ea7g65skk40p7mjhr4b7q8gul8t3h.apps.googleusercontent.com",
+        );
+        final googleUser = await googleSignIn.signIn();
         if (googleUser == null) {
-          setState(() => isLoading = false);
+          // User backed out or cancelled Google account selection
+          if (mounted) setState(() => isLoading = false);
           return;
         }
         final googleAuth = await googleUser.authentication;
+        if (googleAuth.idToken == null && googleAuth.accessToken == null) {
+          throw Exception("Google authentication token not returned. Please check internet connection.");
+        }
         cred = await fb.FirebaseAuth.instance.signInWithCredential(
           fb.GoogleAuthProvider.credential(
             accessToken: googleAuth.accessToken,
@@ -1012,7 +1057,17 @@ class _AuthScreenState extends State<AuthScreen> {
         await _syncGoogleUser(cred.user!);
       }
     } catch (e) {
-      showMessage("Google Sign-In failed: ${e.toString()}", isError: true);
+      if (_isNetworkError(e)) {
+        showMessage("Please check your internet connection and try again.", isError: true);
+      } else if (e.toString().contains('sign_in_canceled') ||
+                 e.toString().contains('12501') ||
+                 e.toString().contains('canceled')) {
+        // User cancelled account selection - silent dismiss
+      } else if (e.toString().contains('10') || e.toString().contains('12500')) {
+        showMessage("Google Sign-In configuration error [code 10]. Please verify SHA-1 in Firebase Console.", isError: true);
+      } else {
+        showMessage("Google Sign-In failed: ${e.toString()}", isError: true);
+      }
     } finally {
       if (mounted) setState(() => isLoading = false);
     }

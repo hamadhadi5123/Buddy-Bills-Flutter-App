@@ -222,6 +222,18 @@ class DatabaseService {
     }
   }
 
+  Future<void> updatePaymentStatus(String paymentId, String status) async {
+    try {
+      await _db.collection('payments').doc(paymentId).update({
+        'status': status,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('Error updating payment status: $e');
+      rethrow;
+    }
+  }
+
   Future<void> deletePayment(String paymentId) async {
     try {
       await _db.collection('payments').doc(paymentId).delete();

@@ -217,6 +217,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                               _buildGlassHeader(currentGroup, textColor, isSmallScreen, isCreator, isPlatformAdmin),
                               const SizedBox(height: 24),
                               
+                              if (payments.any((p) => p.status == 'pending')) ...[
+                                _buildPendingSettlementsSection(payments.where((p) => p.status == 'pending').toList(), textColor, isSmallScreen, hasAdminRights),
+                                const SizedBox(height: 24),
+                              ],
+
                               if (debts.isNotEmpty) ...[
                                 _buildP2PDebtsSection(debts, textColor, isSmallScreen),
                                 const SizedBox(height: 24),
@@ -339,6 +344,221 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPendingSettlementsSection(List<Payment> pendingPayments, Color textColor, bool isSmall, bool hasAdminRights) {
+    final relevant = pendingPayments.where((p) => p.involvedUsers.contains(widget.currentUserUid) || hasAdminRights).toList();
+    if (relevant.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.pending_actions_rounded, color: Colors.orange, size: 18),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              "Pending Settlement Requests",
+              style: GoogleFonts.outfit(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...relevant.map((payment) {
+          final fromUser = widget.allUsers.firstWhere(
+            (u) => u.uid == payment.from,
+            orElse: () => model.User(uid: payment.from, name: payment.from.length > 5 ? "Member ${payment.from.substring(payment.from.length - 4)}" : "Member ${payment.from}", email: "", createdAt: DateTime.now()),
+          );
+          final toUser = widget.allUsers.firstWhere(
+            (u) => u.uid == payment.to,
+            orElse: () => model.User(uid: payment.to, name: payment.to.length > 5 ? "Member ${payment.to.substring(payment.to.length - 4)}" : "Member ${payment.to}", email: "", createdAt: DateTime.now()),
+          );
+
+          final bool iAmReceiver = payment.to == widget.currentUserUid;
+          final bool iAmSender = payment.from == widget.currentUserUid;
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: GlassCard(
+              isDarkMode: widget.isDarkMode,
+              padding: const EdgeInsets.all(16),
+              borderRadius: 18,
+              borderColor: Colors.orange.withOpacity(0.5),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: (iAmReceiver ? accentGreen : Colors.orange).withOpacity(0.15),
+                        child: Icon(
+                          iAmReceiver ? Icons.move_to_inbox_rounded : Icons.outbox_rounded,
+                          color: iAmReceiver ? accentGreen : Colors.orange,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              iAmReceiver
+                                  ? "Settlement Approval Required"
+                                  : (iAmSender ? "Settlement Pending Confirmation" : "Pending Member Settlement"),
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: textColor,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              iAmReceiver
+                                  ? "${fromUser.name} sent PKR ${payment.amount.toStringAsFixed(0)} to settle with you. Did you receive this amount?"
+                                  : (iAmSender
+                                      ? "You sent PKR ${payment.amount.toStringAsFixed(0)} to ${toUser.name}. Waiting for them to confirm receipt."
+                                      : "${fromUser.name} -> ${toUser.name}: PKR ${payment.amount.toStringAsFixed(0)} pending approval."),
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: textColor.withOpacity(0.7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        "PKR ${payment.amount.toStringAsFixed(0)}",
+                        style: GoogleFonts.outfit(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: accentGreen,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (iAmReceiver || hasAdminRights) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: accentGreen,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              elevation: 2,
+                            ),
+                            icon: const Icon(Icons.check_circle_rounded, size: 16),
+                            label: Text(
+                              "Accept & Settle",
+                              style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                            onPressed: () async {
+                              final db = Provider.of<DatabaseService>(context, listen: false);
+                              await db.updatePaymentStatus(payment.id!, 'approved');
+                              await UserActivityService.logPaymentCreated(payment.from, fromUser.name, payment.amount, payment.from, payment.to);
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text("Settlement of PKR ${payment.amount.toStringAsFixed(0)} accepted! Balance updated."),
+                                    backgroundColor: accentGreen,
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.redAccent,
+                              side: const BorderSide(color: Colors.redAccent),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            icon: const Icon(Icons.close_rounded, size: 16),
+                            label: Text(
+                              "Reject",
+                              style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                            onPressed: () async {
+                              final db = Provider.of<DatabaseService>(context, listen: false);
+                              await db.deletePayment(payment.id!);
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Settlement request rejected."),
+                                    backgroundColor: Colors.redAccent,
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else if (iAmSender) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              "Waiting for ${toUser.name}",
+                              style: GoogleFonts.poppins(fontSize: 11, color: Colors.orange, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.redAccent,
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          ),
+                          icon: const Icon(Icons.cancel_outlined, size: 14),
+                          label: const Text("Cancel Request", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          onPressed: () async {
+                            final db = Provider.of<DatabaseService>(context, listen: false);
+                            await db.deletePayment(payment.id!);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Settlement request cancelled.")),
+                              );
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        }),
+      ],
     );
   }
 
@@ -548,7 +768,22 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                         Text("PKR ${item.amount.toStringAsFixed(0)}", 
                           style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)
                         ),
-                        Text(isExpense ? "Details" : "Settled", style: GoogleFonts.poppins(fontSize: 10, color: (isExpense ? primaryBrandColor : accentGreen).withOpacity(0.8), fontWeight: FontWeight.bold)),
+                        Text(
+                          isExpense 
+                              ? "Details" 
+                              : ((item as Payment).status == 'pending' 
+                                  ? "Pending" 
+                                  : ((item).status == 'rejected' ? "Rejected" : "Settled")), 
+                          style: GoogleFonts.poppins(
+                            fontSize: 10, 
+                            color: isExpense 
+                                ? primaryBrandColor.withOpacity(0.8)
+                                : ((item as Payment).status == 'pending' 
+                                    ? Colors.orange 
+                                    : ((item).status == 'rejected' ? Colors.redAccent : accentGreen)), 
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -1004,6 +1239,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       amount: amount,
       groupId: widget.group.id,
       timestamp: DateTime.now(),
+      status: 'pending',
+      requestedBy: widget.currentUserUid,
     );
 
     await db.addPayment(payment);
@@ -1011,19 +1248,26 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       (u) => u.uid == widget.currentUserUid, 
       orElse: () => model.User(uid: widget.currentUserUid, name: "User", email: "", createdAt: DateTime.now())
     );
-    await UserActivityService.logPaymentCreated(widget.currentUserUid, currentUser.name, amount, payment.from, payment.to);
+    final otherUser = widget.allUsers.firstWhere(
+      (u) => u.uid == otherUid,
+      orElse: () => model.User(uid: otherUid, name: "Member", email: "", createdAt: DateTime.now())
+    );
+    await UserActivityService.logActivity(
+      userId: widget.currentUserUid,
+      userName: currentUser.name,
+      action: 'Settlement Requested',
+      details: 'Sent settlement request of PKR ${amount.toStringAsFixed(0)} to ${otherUser.name}',
+    );
     
     if (!mounted) return;
     Navigator.pop(bottomSheetContext); // Close partial dialog
     Navigator.pop(context); // Close settle-up list bottom sheet
 
-    final remaining = debt.amount - amount;
-    final message = remaining <= 0.01 
-        ? "Full settlement of PKR ${amount.toStringAsFixed(0)} recorded successfully!"
-        : "Partial payment of PKR ${amount.toStringAsFixed(0)} recorded! Remaining due: PKR ${remaining.toStringAsFixed(0)}";
+    final targetName = otherUser.name;
+    final message = "Settlement request of PKR ${amount.toStringAsFixed(0)} sent to $targetName! Once they accept, the balance will be settled.";
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: accentGreen)
+      SnackBar(content: Text(message), backgroundColor: primaryBrandColor)
     );
   }
 
@@ -1696,14 +1940,78 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                         Text("Status", style: GoogleFonts.poppins(fontSize: 13, color: textColor.withOpacity(0.6))),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(color: accentGreen.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
-                          child: Text("Completed & Settled", style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.bold, color: accentGreen)),
+                          decoration: BoxDecoration(
+                            color: (payment.status == 'pending' ? Colors.orange : (payment.status == 'rejected' ? Colors.redAccent : accentGreen)).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            payment.status == 'pending' ? "Pending Approval" : (payment.status == 'rejected' ? "Rejected" : "Completed & Settled"),
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: payment.status == 'pending' ? Colors.orange : (payment.status == 'rejected' ? Colors.redAccent : accentGreen),
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ],
                 ),
               ),
+              if (payment.status == 'pending' && (payment.to == widget.currentUserUid || hasAdminRights) && payment.id != null) ...[
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: accentGreen,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          elevation: 0,
+                        ),
+                        icon: const Icon(Icons.check_circle_rounded, size: 18),
+                        label: const Text("Accept Settlement", style: TextStyle(fontWeight: FontWeight.bold)),
+                        onPressed: () async {
+                          final db = Provider.of<DatabaseService>(context, listen: false);
+                          await db.updatePaymentStatus(payment.id!, 'approved');
+                          await UserActivityService.logPaymentCreated(payment.from, fromUser.name, payment.amount, payment.from, payment.to);
+                          if (mounted) {
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Settlement of PKR ${payment.amount.toStringAsFixed(0)} accepted!"), backgroundColor: accentGreen),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.redAccent,
+                          side: const BorderSide(color: Colors.redAccent),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        label: const Text("Reject", style: TextStyle(fontWeight: FontWeight.bold)),
+                        onPressed: () async {
+                          final db = Provider.of<DatabaseService>(context, listen: false);
+                          await db.deletePayment(payment.id!);
+                          if (mounted) {
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Settlement request rejected."), backgroundColor: Colors.redAccent),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               if (canDelete && payment.id != null) ...[
                 const SizedBox(height: 20),
                 SizedBox(

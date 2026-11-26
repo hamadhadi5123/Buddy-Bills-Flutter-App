@@ -233,6 +233,20 @@ class _HomeNavigationState extends State<HomeNavigation> {
                     final payments = paymentSnapshot.data ?? [];
                     final overallBalances = _calculateTotalBalances(expenses, payments, allUsers, groups);
 
+                    // Filter friends to ONLY those who share at least one group with current user
+                    final Set<String> mutualGroupMemberUids = {};
+                    for (var g in groups) {
+                      if (g.members.contains(widget.user.uid)) {
+                        mutualGroupMemberUids.addAll(g.members);
+                      }
+                    }
+                    mutualGroupMemberUids.remove(widget.user.uid);
+                    final mutualGroupFriends = allUsers.where((u) => mutualGroupMemberUids.contains(u.uid)).toList();
+
+                    final mutualBalances = overallBalances.where((b) {
+                      return mutualGroupFriends.any((u) => u.name == b.member);
+                    }).toList();
+
                     return Scaffold(
                       extendBody: true,
                       backgroundColor: isDarkMode ? Colors.black : Colors.white,
@@ -333,9 +347,9 @@ class _HomeNavigationState extends State<HomeNavigation> {
                               isDarkMode: isDarkMode,
                             ),
                             FriendsScreen(
-                              allUsers: allUsers,
+                              allUsers: mutualGroupFriends,
                               currentUser: widget.user,
-                              balances: overallBalances,
+                              balances: mutualBalances,
                               isDarkMode: isDarkMode,
                             ),
                             InboxScreen(

@@ -88,7 +88,7 @@ class FriendsScreen extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            "Start tracking expenses by adding balance.",
+            "Add members to your groups to start tracking expenses together.",
             style: GoogleFonts.poppins(color: textColor.withOpacity(0.5)),
           ),
         ],
