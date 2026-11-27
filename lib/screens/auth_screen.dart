@@ -1032,33 +1032,33 @@ class _AuthScreenState extends State<AuthScreen> {
       if (kIsWeb) {
         cred = await fb.FirebaseAuth.instance.signInWithPopup(fb.GoogleAuthProvider());
       } else {
-        final GoogleSignIn googleSignIn = GoogleSignIn(
-          scopes: ['email', 'profile'],
-          serverClientId: "888705135654-926ea7g65skk40p7mjhr4b7q8gul8t3h.apps.googleusercontent.com",
-        );
         try {
-          await googleSignIn.signOut();
-        } catch (_) {}
+          final GoogleSignIn googleSignIn = GoogleSignIn(
+            scopes: ['email', 'profile'],
+            serverClientId: "888705135654-926ea7g65skk40p7mjhr4b7q8gul8t3h.apps.googleusercontent.com",
+          );
+          try {
+            await googleSignIn.signOut();
+          } catch (_) {}
 
-        final googleUser = await googleSignIn.signIn();
-        if (googleUser == null) {
-          // Account selection returned null (user cancelled or Google Play Services rejected app signature)
-          if (mounted) {
-            setState(() => isLoading = false);
-            showMessage("Google Sign-In returned empty. Please ensure your SHA-1 is added in Firebase Console.", isError: true);
+          final googleUser = await googleSignIn.signIn();
+          if (googleUser != null) {
+            final googleAuth = await googleUser.authentication;
+            cred = await fb.FirebaseAuth.instance.signInWithCredential(
+              fb.GoogleAuthProvider.credential(
+                accessToken: googleAuth.accessToken,
+                idToken: googleAuth.idToken,
+              ),
+            );
+          } else {
+            // Fallback to web browser OAuth flow (works without native Google Play Services SHA-1)
+            cred = await fb.FirebaseAuth.instance.signInWithProvider(fb.GoogleAuthProvider());
           }
-          return;
+        } catch (nativeErr) {
+          // If Google Play Services fails (e.g. missing SHA-1 error 10 / 12500 / 12501),
+          // fallback to browser-based Google OAuth flow
+          cred = await fb.FirebaseAuth.instance.signInWithProvider(fb.GoogleAuthProvider());
         }
-        final googleAuth = await googleUser.authentication;
-        if (googleAuth.idToken == null && googleAuth.accessToken == null) {
-          throw Exception("Google authentication token not returned. Please check internet connection.");
-        }
-        cred = await fb.FirebaseAuth.instance.signInWithCredential(
-          fb.GoogleAuthProvider.credential(
-            accessToken: googleAuth.accessToken,
-            idToken: googleAuth.idToken,
-          ),
-        );
       }
 
       if (cred.user != null) {
