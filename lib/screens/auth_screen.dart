@@ -1033,12 +1033,20 @@ class _AuthScreenState extends State<AuthScreen> {
         cred = await fb.FirebaseAuth.instance.signInWithPopup(fb.GoogleAuthProvider());
       } else {
         final GoogleSignIn googleSignIn = GoogleSignIn(
+          scopes: ['email', 'profile'],
           serverClientId: "888705135654-926ea7g65skk40p7mjhr4b7q8gul8t3h.apps.googleusercontent.com",
         );
+        try {
+          await googleSignIn.signOut();
+        } catch (_) {}
+
         final googleUser = await googleSignIn.signIn();
         if (googleUser == null) {
-          // User backed out or cancelled Google account selection
-          if (mounted) setState(() => isLoading = false);
+          // Account selection returned null (user cancelled or Google Play Services rejected app signature)
+          if (mounted) {
+            setState(() => isLoading = false);
+            showMessage("Google Sign-In returned empty. Please ensure your SHA-1 is added in Firebase Console.", isError: true);
+          }
           return;
         }
         final googleAuth = await googleUser.authentication;
@@ -1060,11 +1068,12 @@ class _AuthScreenState extends State<AuthScreen> {
       if (_isNetworkError(e)) {
         showMessage("Please check your internet connection and try again.", isError: true);
       } else if (e.toString().contains('sign_in_canceled') ||
-                 e.toString().contains('12501') ||
                  e.toString().contains('canceled')) {
-        // User cancelled account selection - silent dismiss
+        showMessage("Google Sign-In cancelled.", isError: false);
+      } else if (e.toString().contains('12501')) {
+        showMessage("Google Sign-In [12501]: Cancelled or SHA-1 fingerprint missing in Firebase Console.", isError: true);
       } else if (e.toString().contains('10') || e.toString().contains('12500')) {
-        showMessage("Google Sign-In configuration error [code 10]. Please verify SHA-1 in Firebase Console.", isError: true);
+        showMessage("Google Sign-In [Error 10]: SHA-1 fingerprint must be added to Firebase Console.", isError: true);
       } else {
         showMessage("Google Sign-In failed: ${e.toString()}", isError: true);
       }
